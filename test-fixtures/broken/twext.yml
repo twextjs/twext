@@ -1,0 +1,24 @@
+entryPoint: "src/index.js"
+outputPath: "dist/extension.js"
+
+extension:
+  id: "brokenextension"
+  name: "Broken"
+  className: "BrokenExtension"
+  color1: "#111111"
+  color2: "#222222"
+  color3: "#333333"
+
+blocks:
+  - opcode: nope
+    blockType: reporter
+    text: "no handler"
+  - opcode: badtype
+    blockType: imagetype
+    text: "bad block type"
+  - opcode: badarg
+    blockType: reporter
+    text: "bad arg"
+    arguments:
+      X:
+        type: imaginary

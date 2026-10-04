@@ -1,0 +1,388 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/twext/twext/blob/main/schema/twext.json",
+  "title": "Twext",
+  "description": "Manifest for a Twext extension project (twext.yml).",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["entryPoint", "extension", "blocks"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Project name, used as a fallback for the extension name."
+    },
+    "version": {
+      "type": "string",
+      "description": "Project version."
+    },
+    "description": {
+      "type": "string",
+      "description": "Short description of the extension."
+    },
+    "author": {
+      "type": "string",
+      "description": "Author name or GitHub handle."
+    },
+    "license": {
+      "type": "string",
+      "description": "SPDX license identifier. Defaults to MIT."
+    },
+    "entryPoint": {
+      "type": "string",
+      "description": "Path to the entryPoint module. It must export a `blocks` map and may export `setup` and `methods`."
+    },
+    "outputPath": {
+      "type": "string",
+      "description": "Where twext build writes the compiled extension. Defaults to dist/extension.js."
+    },
+    "extension": {
+      "$ref": "#/definitions/extension"
+    },
+    "blocks": {
+      "$ref": "#/definitions/blocks"
+    }
+  },
+  "definitions": {
+    "extension": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-z0-9]{1,64}$",
+          "description": "Stable ID TurboWarp uses to identify the extension. Lower-case letters and digits only."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name shown in the block palette. Defaults to the project name."
+        },
+        "className": {
+          "type": "string",
+          "pattern": "^[A-Za-z_$][\\w$]*$",
+          "description": "Name of the generated extension class. Defaults to a derivation of the id."
+        },
+        "color1": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "description": "Primary block color as a HEX value."
+        },
+        "color2": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "description": "Secondary block color as a HEX value."
+        },
+        "color3": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "description": "Tertiary block color as a HEX value."
+        },
+        "menus": {
+          "$ref": "#/definitions/menus",
+          "description": "Dropdowns that block arguments reference via the `menu` property."
+        },
+        "docsURI": {
+          "type": "string",
+          "description": "Link to documentation, shown as \"Documentation\" in the extension's menu."
+        },
+        "menuIconURI": {
+          "type": "string",
+          "description": "Icon shown next to the extension's name in the palette."
+        },
+        "blockIconURI": {
+          "type": "string",
+          "description": "Icon shown on the extension's button in the block palette."
+        }
+      }
+    },
+    "blocks": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Block definitions, \"---\" separators, and labels. Every executable block maps an opcode to a handler exported by the entryPoint; buttons name a method with `func` instead.",
+      "items": {
+        "anyOf": [
+          {
+            "const": "---",
+            "description": "A space separator in the block palette."
+          },
+          {
+            "$ref": "#/definitions/block"
+          }
+        ]
+      }
+    },
+    "block": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "opcode": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Must match the key of a handler in the entryPoint `blocks` map."
+        },
+        "func": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Name the generated extension method is published under. Defaults to the opcode; required for buttons, which have no opcode."
+        },
+        "blockType": {
+          "$ref": "#/definitions/blockType"
+        },
+        "text": {
+          "type": "string",
+          "description": "Label shown on the block. Defaults to the opcode."
+        },
+        "arguments": {
+          "$ref": "#/definitions/arguments"
+        },
+        "hideFromPalette": {
+          "type": "boolean",
+          "description": "Keeps the block out of the palette while leaving it usable in existing projects."
+        },
+        "blockIconURI": {
+          "type": "string",
+          "description": "Icon shown on the block itself."
+        },
+        "filter": {
+          "$ref": "#/definitions/targetFilter"
+        },
+        "isDynamic": {
+          "type": "boolean",
+          "description": "Marks the block as dynamic, which lets the editor and inspector target it by name."
+        },
+        "isTerminal": {
+          "type": "boolean",
+          "description": "Stops the script after the block runs instead of continuing to the next block. Command blocks only."
+        },
+        "disableMonitor": {
+          "type": "boolean",
+          "description": "Hides the block's monitor while it is dragged out. Reporters only."
+        },
+        "isEdgeActivated": {
+          "type": "boolean",
+          "description": "Whether the hat fires for every matching target instead of only fresh ones. Hats only; event blocks require false."
+        },
+        "shouldRestartExistingThreads": {
+          "type": "boolean",
+          "description": "Restarts already-running threads for a target instead of letting them finish. Hats only."
+        },
+        "branchCount": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of branches on a C-shaped block."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["blockType"],
+            "properties": {
+              "blockType": {
+                "const": "label"
+              }
+            }
+          },
+          "then": {
+            "additionalProperties": false,
+            "properties": {
+              "blockType": {
+                "const": "label"
+              },
+              "text": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["blockType"],
+            "properties": {
+              "blockType": {
+                "const": "button"
+              }
+            }
+          },
+          "then": {
+            "additionalProperties": false,
+            "required": ["func"],
+            "properties": {
+              "blockType": {
+                "const": "button"
+              },
+              "text": {
+                "type": "string"
+              },
+              "func": {
+                "type": "string",
+                "minLength": 1
+              },
+              "filter": {
+                "$ref": "#/definitions/targetFilter"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "anyOf": [
+              {
+                "not": {
+                  "required": ["blockType"]
+                }
+              },
+              {
+                "properties": {
+                  "blockType": {
+                    "not": {
+                      "enum": ["label", "button"]
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "then": {
+            "required": ["opcode"]
+          }
+        }
+      ]
+    },
+    "blockType": {
+      "type": "string",
+      "enum": [
+        "command",
+        "reporter",
+        "boolean",
+        "hat",
+        "event",
+        "loop",
+        "cond",
+        "cblock",
+        "button",
+        "label"
+      ],
+      "description": "TurboWarp block type. Defaults to reporter."
+    },
+    "arguments": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/argument"
+      }
+    },
+    "argument": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "$ref": "#/definitions/argumentType"
+        },
+        "defaultValue": {
+          "description": "Value used when the argument is left empty."
+        },
+        "menu": {
+          "type": "string",
+          "description": "Name of a menu declared in extension.menus that this argument selects from."
+        },
+        "dataURI": {
+          "type": "string",
+          "description": "Data URI for the argument's asset. Required for image, costume, and sound arguments."
+        },
+        "flipRTL": {
+          "type": "boolean",
+          "description": "Mirrors the asset when the project is right-to-left. Image and costume arguments only."
+        }
+      }
+    },
+    "argumentType": {
+      "type": "string",
+      "enum": [
+        "string",
+        "text",
+        "number",
+        "boolean",
+        "angle",
+        "color",
+        "matrix",
+        "note",
+        "image",
+        "costume",
+        "sound"
+      ],
+      "description": "TurboWarp argument type. Defaults to string."
+    },
+    "targetFilter": {
+      "type": "array",
+      "description": "Restricts a block or button to specific target types. Omit to allow both.",
+      "items": {
+        "enum": ["sprite", "stage"]
+      }
+    },
+    "menus": {
+      "type": "object",
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "string",
+            "minLength": 1,
+            "description": "Name of a method in the entryPoint `methods` export that returns the items."
+          },
+          {
+            "$ref": "#/definitions/menuItems"
+          },
+          {
+            "$ref": "#/definitions/menu"
+          }
+        ]
+      }
+    },
+    "menuItems": {
+      "type": "array",
+      "description": "Menu items. Strings are shown as-is; objects display `text` and pass `value` to the block.",
+      "items": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "object",
+            "required": ["text", "value"],
+            "properties": {
+              "text": {
+                "type": "string"
+              },
+              "value": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "menu": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["items"],
+      "properties": {
+        "acceptReporters": {
+          "type": "boolean",
+          "description": "Whether the menu allows reporter blocks to be dropped in. Almost always true."
+        },
+        "items": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "description": "Name of a method in the entryPoint `methods` export that returns the items."
+            },
+            {
+              "$ref": "#/definitions/menuItems"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

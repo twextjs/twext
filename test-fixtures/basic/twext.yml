@@ -1,0 +1,41 @@
+name: "super-utilities"
+version: "1.0.0"
+description: "Custom utility blocks for TurboWarp performance"
+author: "Kane Boswell"
+license: "MIT"
+
+entryPoint: "src/index.js"
+outputPath: "dist/extension.js"
+
+extension:
+  id: "superutilities"
+  name: "Super Utilities"
+  className: "SuperUtilitiesExtension"
+  color1: "#FF4D4D"
+  color2: "#E60000"
+  color3: "#B30000"
+
+blocks:
+  - opcode: logMessage
+    blockType: command
+    text: "log [MESSAGE] to console"
+    arguments:
+      MESSAGE:
+        type: string
+        defaultValue: "Hello TurboWarp!"
+  - opcode: square
+    blockType: reporter
+    text: "square [VALUE]"
+    arguments:
+      VALUE:
+        type: number
+        defaultValue: 4
+  - opcode: shout
+    blockType: reporter
+    text: "shout [THING]"
+    arguments:
+      THING:
+        type: string
+        defaultValue: "world"
+  - blockType: label
+    text: "Custom Utilities"

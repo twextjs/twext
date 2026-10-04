@@ -1,0 +1,58 @@
+{
+  "name": "@twextjs/twext",
+  "version": "1.0.0",
+  "description": "A modular, zero-config Node.js toolchain for authoring, validating, and compiling multi-file TurboWarp extensions with YAML manifests",
+  "author": "Twext Team",
+  "license": "Apache-2.0",
+  "type": "module",
+  "repository": {
+    "url": "git+https://github.com/twextjs/twext.git"
+  },
+  "bin": {
+    "twext": "src/cli.js"
+  },
+  "files": [
+    "src",
+    "schema",
+    "types",
+    "product.yml"
+  ],
+  "exports": {
+    "./types/*": "./types/*"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "keywords": [
+    "turbowarp",
+    "turbowarp-extension",
+    "scratch",
+    "scratch-extension",
+    "compiler",
+    "bundler",
+    "twext",
+    "build-tool"
+  ],
+  "scripts": {
+    "test": "node --test",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "doctoc": "doctoc --notitle .",
+    "check": "npm run lint && npm run format:check && npm test"
+  },
+  "dependencies": {
+    "eslint-scope": "^9.1.2",
+    "espree": "^11.2.0",
+    "globals": "^17.12.0",
+    "picocolors": "^1.1.1",
+    "tar": "^7.5.22",
+    "yaml": "^2.9.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "doctoc": "^2.5.0",
+    "eslint": "^10.10.0",
+    "prettier": "^3.9.6"
+  }
+}

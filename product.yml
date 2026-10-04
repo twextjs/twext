@@ -1,0 +1,16 @@
+name: "Twext"
+command: "twext"
+version: "1.0.0"
+tagline: "A modular, zero-config Node.js toolchain for authoring, validating, and compiling multi-file TurboWarp extensions with YAML manifests"
+author: "Twext Team"
+homepage: "https://github.com/twext/twext"
+symbols:
+  success: "✓"
+  error: "✗"
+  progress: "~"
+  bullet: "•"
+defaults:
+  configFilename: "twext.yml"
+  outputDirectory: "dist"
+  devPort: 8000
+  fallbackColor: "#0070F3"

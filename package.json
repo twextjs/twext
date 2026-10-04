@@ -1,6 +1,6 @@
 {
   "name": "@twextjs/twext",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A modular, zero-config Node.js toolchain for authoring, validating, and compiling multi-file TurboWarp extensions with YAML manifests",
   "author": "Twext Team",
   "license": "Apache-2.0",

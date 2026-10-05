@@ -111,7 +111,6 @@ These commands talk to a TwextHub. [Using TwextHub](./twexthub.md) walks through
 | `--password <password>`    | `login`, `signup`                                         | Password. Prompts when omitted.                                                |
 | `--display-name <name>`    | `signup`, `org create`, `org update`                      | Display name for the new account or organization.                              |
 | `--token <token>`          | all authenticated hub commands                            | Bearer token, instead of the stored one.                                       |
-| `--private`                | `publish`                                                 | Publish a version only you and the accounts you grant access can see.          |
 | `--read`                   | `notifications`                                           | Mark the listed notifications as read.                                         |
 | `--sort <key>`             | `search`, `org extensions`                                | `recent`, `downloads`, `updated`, or `name`.                                   |
 | `--clear`                  | `deprecate`                                               | Remove the deprecation message instead of setting one.                         |
@@ -126,7 +125,7 @@ These commands talk to a TwextHub. [Using TwextHub](./twexthub.md) walks through
 
 `login` and `signup` prompt for anything you leave out, and `login` reads the stored namespace when you don't pass `-n`.
 
-`publish`, `yank`, `deprecate`, and the `tag` subcommands all need a token. `checkout` needs one too, even for a public extension. `search` and `info` don't, unless the extension has private versions. Of the `org` subcommands, `create`, `update`, `delete`, `add` and `remove` need a token; `list`, `info` and `owners` don't, and `extensions` only to see private ones.
+`publish`, `yank`, `deprecate`, and the `tag` subcommands all need a token. `checkout` needs one too, even for a public extension. `search` and `info` don't, though they send the stored token when there is one so the hub can show you your own extension. Of the `org` subcommands, `create`, `update`, `delete`, `add` and `remove` need a token; `list`, `info` and `owners` don't, and `extensions` sends the token for the same reason as `search` and `info`.
 
 ### Extension Specs
 

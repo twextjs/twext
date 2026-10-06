@@ -1,7 +1,7 @@
 name: "Twext"
 command: "twext"
 version: "1.0.1"
-tagline: "A modular, zero-config Node.js toolchain for authoring, validating, and compiling multi-file TurboWarp extensions with YAML manifests"
+tagline: "Build custom TurboWarp extensions with JavaScript modules (ESM)."
 author: "Twext Team"
 homepage: "https://github.com/twext/twext"
 symbols:

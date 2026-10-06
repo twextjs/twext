@@ -23,6 +23,7 @@ extension:
   color1: "#FF4D4D"
   color2: "#E60000"
   color3: "#B30000"
+  isUnsandboxed: true
   docsURI: "https://example.com/super-utilities/docs"
   menuIconURI: "https://example.com/super-utilities/menu.svg"
   blockIconURI: "https://example.com/super-utilities/button.svg"
@@ -88,6 +89,7 @@ blocks:
 
 - [📦 Project Fields](#-project-fields)
 - [🧩 The `extension` Section](#-the-extension-section)
+  - [Unsandboxed Extensions](#unsandboxed-extensions)
 - [🧱 Blocks](#-blocks)
   - [Block Types](#block-types)
   - [Buttons](#buttons)
@@ -125,7 +127,32 @@ Every key under `extension`, a block, an argument, and a menu has to be one Twex
 - `docsURI`: Link to your documentation. TurboWarp shows it as a **Documentation** entry at the bottom of the extension's menu.
 - `menuIconURI`: Icon shown next to the extension's name in the block palette.
 - `blockIconURI`: Icon shown on the extension's button in the block palette.
+- `isUnsandboxed`: Puts a check at the top of the compiled extension that throws `This extension must run unsandboxed!` unless TurboWarp loaded it without the sandbox. Set it when a handler needs `Scratch.vm`, the project's variables, or direct sprite access — a sandboxed extension can't reach any of those, and the blocks would fail in the project instead. It isn't part of `getInfo()`; the check runs in the compiled file itself, before the extension registers.
 - `menus`: Dropdowns that block arguments select from. See [Menus](#-menus).
+
+### Unsandboxed Extensions
+
+A sandboxed extension runs in an iframe and can only see what the editor hands it, so a block that reaches for `Scratch.vm`, a variable, or a sprite does nothing useful there. `isUnsandboxed: true` puts this at the top of the compiled file, ahead of the generated class:
+
+```js
+(function (Scratch) {
+  "use strict";
+
+  if (!Scratch.extensions.unsandboxed) {
+    throw new Error("This extension must run unsandboxed!");
+  }
+
+  class GreeterExtension {
+    // ...
+  }
+
+  Scratch.extensions.register(new GreeterExtension());
+})(Scratch);
+```
+
+The user sees the error when they load the file into the sandbox instead of checking "Run extension without sandbox", or when they load it from a URL that isn't one TurboWarp allows unsandboxed. See TurboWarp's [unsandboxed extensions](https://docs.turbowarp.org/development/extensions/unsandboxed) for those rules.
+
+Extensions built by Twext work either way, so this is off unless you set it.
 
 ## 🧱 Blocks
 

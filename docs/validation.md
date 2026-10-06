@@ -31,6 +31,7 @@ The manifest has to load and name the right things:
 - The entry point exports a `blocks` map.
 - `extension` is present, and `extension.id` is 1 to 64 lower-case letters and digits.
 - `extension.className` is a valid JavaScript identifier and not a reserved word, if it's set.
+- `extension.isUnsandboxed` is a boolean, if it's set.
 - `blocks` has at least one entry, and every entry is a block mapping, a `---` separator, or a label.
 - Every `extension.menus` value is a list of items, a menu mapping with `items` and an optional boolean `acceptReporters`, or the name of a method, and every item is a string or a `{ text, value }` mapping of strings.
 

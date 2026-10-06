@@ -235,6 +235,6 @@ export const blocks = { sayHello };
 })(Scratch);
 ```
 
-The file is what TurboWarp loads, and nothing in it is a bundle of your project — there's no module registry, no `import`, and no `export` in the output. Add the compiled file to TurboWarp as an unsandboxed extension.
+The file is what TurboWarp loads, and nothing in it is a bundle of your project — there's no module registry, no `import`, and no `export` in the output. Add the compiled file to TurboWarp as an unsandboxed extension, or set `extension.isUnsandboxed` in `twext.yml` and the built file throws when TurboWarp loads it into the sandbox instead.
 
 > **Important:** `twext publish` sends your sources to TwextHub, not this file. The hub runs its own `twext build` on what it receives.

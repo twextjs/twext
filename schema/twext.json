@@ -83,6 +83,10 @@
           "$ref": "#/definitions/menus",
           "description": "Dropdowns that block arguments reference via the `menu` property."
         },
+        "isUnsandboxed": {
+          "type": "boolean",
+          "description": "Makes the extension throw on load unless TurboWarp loaded it without the sandbox."
+        },
         "docsURI": {
           "type": "string",
           "description": "Link to documentation, shown as \"Documentation\" in the extension's menu."

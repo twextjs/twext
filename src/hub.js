@@ -148,8 +148,8 @@ export async function acceptTerms(base, token, namespace) {
   });
 }
 
-export async function publishVersion(base, token, namespace, id, tarball, visibility) {
-  return hubRequest(base, `/@${namespace}/${id}/versions?visibility=${visibility}`, {
+export async function publishVersion(base, token, namespace, id, tarball) {
+  return hubRequest(base, `/@${namespace}/${id}/versions`, {
     method: "POST",
     token,
     raw: tarball,
@@ -173,8 +173,8 @@ export async function revokeCurrentToken(base, token) {
   return hubRequest(base, "/tokens/current", { method: "DELETE", token });
 }
 
-// These reads are public for public versions, but the hub only shows a caller
-// its private versions when the request carries a bearer token.
+// These reads are public for published versions, but the hub only shows a caller
+// its own when the request carries a bearer token.
 export async function getExtension(base, namespace, id, token) {
   return hubRequest(base, `/@${namespace}/${id}`, { token });
 }
@@ -300,8 +300,8 @@ export async function removeOrganizationOwner(base, token, namespace, ownerNames
   });
 }
 
-// An owner of the organization sees its private extensions in the listing, which
-// only happens when the request carries a bearer token.
+// An owner of the organization sees its unpublished extensions in the listing,
+// which only happens when the request carries a bearer token.
 export async function listOrganizationExtensions(base, namespace, sort, license, token) {
   const query = new URLSearchParams({ limit: "50" });
   if (sort) query.set("sort", sort);

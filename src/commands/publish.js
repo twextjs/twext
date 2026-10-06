@@ -12,7 +12,7 @@ import {
 } from "../hub.js";
 import { createProjectTarball } from "../tarball.js";
 
-export async function publishCommand(product, configPath, { url, token, private: isPrivate }, log) {
+export async function publishCommand(product, configPath, { url, token }, log) {
   const result = await validateProject(configPath);
   if (!result.ok) {
     for (const message of result.errors) log.error(message);
@@ -56,7 +56,7 @@ export async function publishCommand(product, configPath, { url, token, private:
     return false;
   }
 
-  log.progress(`Publishing ${id}@${version}${isPrivate ? " (private)" : ""} to @${namespace}...`);
+  log.progress(`Publishing ${id}@${version} to @${namespace}...`);
 
   const fail = (err) => {
     log.error(err.message);
@@ -64,8 +64,7 @@ export async function publishCommand(product, configPath, { url, token, private:
     return false;
   };
 
-  const publish = () =>
-    publishVersion(hub, authToken, namespace, id, tarball, isPrivate ? "private" : "public");
+  const publish = () => publishVersion(hub, authToken, namespace, id, tarball);
   let created;
   try {
     created = await publish();

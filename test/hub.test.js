@@ -949,7 +949,7 @@ test("publish reports the build log when the hub's build fails", async () => {
   }
 });
 
-test("publish --private asks the hub for a private version", async () => {
+test("publish uploads to the versions path without a visibility query", async () => {
   const { dir, cleanup } = tmpHome();
   const hub = await createHub([
     {
@@ -962,20 +962,19 @@ test("publish --private asks the hub for a private version", async () => {
           id: "superutilities",
           version: "1.0.0",
           status: "published",
-          visibility: "private",
         },
       },
     },
   ]);
   try {
     const publish = await runCli(
-      ["publish", "--private", "--config", fixture("basic/twext.yml"), "--url", hub.url],
+      ["publish", "--config", fixture("basic/twext.yml"), "--url", hub.url],
       { env: { HOME: dir, TWEXTHUB_NAMESPACE: "acme", TWEXTHUB_TOKEN: "auto-tok" } },
     );
     assert.equal(publish.code, 0, publish.stderr);
-    assert.match(publish.stdout, /Publishing superutilities@1\.0\.0 \(private\)/);
+    assert.match(publish.stdout, /Publishing superutilities@1\.0\.0 to @acme/);
     const request = hub.requests.find((r) => r.path === "/@acme/superutilities/versions");
-    assert.equal(request.query, "visibility=private");
+    assert.equal(request.query, "");
   } finally {
     cleanup();
     await hub.close();
@@ -1203,7 +1202,7 @@ test("tag sets, lists and removes dist-tags", async () => {
     assert.equal(
       hub.requests.find((r) => r.method === "GET").authorization,
       "Bearer sess-1",
-      "listing tags carries the token so a private extension resolves",
+      "listing tags carries the token so the hub resolves the caller's own extension",
     );
 
     const removed = await runCli(["tag", "rm", "next", ...config], { env });
@@ -1263,7 +1262,6 @@ test("info prints extension detail, a single version and range matches", async (
           name: "Super Utilities",
           version: "1.0.0",
           status: "published",
-          visibility: "public",
           createdAt: "2026-09-27T00:00:00Z",
           dist: { downloadUrl: "https://hub.test/x.js", digest: "sha256:abc" },
         },
@@ -1294,7 +1292,7 @@ test("info prints extension detail, a single version and range matches", async (
     assert.equal(
       hub.requests[0].authorization,
       "Bearer sess-1",
-      "reads carry the token so the hub shows the caller its private versions",
+      "reads carry the token so the hub shows the caller its own unpublished versions",
     );
     assert.match(full.stdout, /Super Utilities @acme\/superutilities/);
     assert.match(full.stdout, /versions:/);
@@ -1372,7 +1370,7 @@ test("search queries the registry and validates --sort", async () => {
     assert.equal(
       request.authorization,
       "Bearer sess-1",
-      "search carries the token so the caller sees its own private extensions",
+      "search carries the token so the caller sees its own unpublished extensions",
     );
 
     const bad = await runCli(["search", "--sort", "bogus", "--url", hub.url], {
@@ -1903,7 +1901,7 @@ test("org list, info, owners and extensions are public reads", async () => {
     assert.equal(
       listing.authorization,
       "Bearer sess-1",
-      "the listing carries the token so an owner sees the private extensions",
+      "the listing carries the token so an owner sees their unpublished extensions",
     );
 
     for (const path of ["/orgs", "/orgs/acme", "/orgs/acme/owners"]) {

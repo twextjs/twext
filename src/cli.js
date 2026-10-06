@@ -35,7 +35,6 @@ const OPTIONS = {
   name: { type: "string" },
   scope: { type: "string", multiple: true },
   "expires-in-days": { type: "string" },
-  private: { type: "boolean" },
   read: { type: "boolean" },
   sort: { type: "string" },
   clear: { type: "boolean" },
@@ -84,7 +83,6 @@ Options:
   --name <name>            Token name (token create only)
   --scope <scope>          Token scope, repeatable (token create only; default: publish)
   --expires-in-days <days> Token lifetime (token create only)
-  --private                Publish a private version (publish only)
   --read                   Mark the listed notifications as read (notifications only)
   --sort <key>             Order: recent, downloads, updated, name (search, org extensions)
   --clear                  Drop a deprecation message (deprecate only)

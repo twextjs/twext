@@ -34,7 +34,6 @@ async function printVersion(log, hub, token, namespace, id, requested) {
   log.bullet(
     `created ${day(version.createdAt)}${version.publishedAt ? `, published ${day(version.publishedAt)}` : ""}`,
   );
-  if (version.visibility) log.bullet(`visibility ${version.visibility}`);
   if (version.dist?.downloadUrl) log.bullet(`download ${version.dist.downloadUrl}`);
   if (version.dist?.digest) log.bullet(`digest ${version.dist.digest}`);
 }

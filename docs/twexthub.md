@@ -19,7 +19,6 @@ This file will explain how to use TwextHub with the Twext CLI. If you're looking
 - [👤 Getting an Account](#-getting-an-account)
   - [Where the Credentials Live](#where-the-credentials-live)
 - [➕ Publishing](#-publishing)
-- [🔒 Private Versions](#-private-versions)
 - [🔔 Checking Your Notifications](#-checking-your-notifications)
 - [🔍 Finding Extensions](#-finding-extensions)
 - [📥 Checking Out Sources](#-checking-out-sources)
@@ -97,14 +96,6 @@ The version comes from `version` in your `twext.yml`, and the extension name fro
 
 The first `publish` from a new account also has to accept the hub's Terms of Service, which the command does for you and tells you it did. It only does that with a session from `twext login`, never with a token you passed in.
 
-## 🔒 Private Versions
-
-`twext publish --private` uploads a version that only you and the accounts you grant access to can see. Use it for work in progress that you'd rather not put on the public registry yet.
-
-```bash
-twext publish --private
-```
-
 ## 🔔 Checking Your Notifications
 
 If your extension was held for review, you can also check your notifications to see if it has been approved. Notifications are also sent if:
@@ -145,7 +136,7 @@ twext info @kamixfox/superutilities@1.2.0
 twext info @kamixfox/superutilities@^1.0
 ```
 
-Neither `search` nor `info` needs a login, unless the extension has private versions that only you can see.
+Neither `search` nor `info` needs a login. They send the stored token anyway when there is one, which is how the hub knows to include your own extension in the results.
 
 ## 📥 Checking Out Sources
 

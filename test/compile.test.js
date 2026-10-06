@@ -12,7 +12,7 @@ import { validateProject } from "../src/validate.js";
 
 const fixture = (name) => fileURLToPath(new URL(`../test-fixtures/${name}`, import.meta.url));
 
-function executeExtension(code) {
+function executeExtension(code, { unsandboxed } = {}) {
   global.Scratch = {
     BlockType: {
       COMMAND: "command",
@@ -38,6 +38,7 @@ function executeExtension(code) {
       SOUND: "sound",
     },
     extensions: {
+      unsandboxed,
       register(ext) {
         global.__registered = ext;
       },
@@ -641,7 +642,7 @@ blocks:
   assert.equal(result.ok, true, result.errors.join("; "));
 });
 
-async function compileTempProject(yml, index) {
+async function compileTempProject(yml, index, scratch) {
   const dir = mkdtempSync(join(tmpdir(), "twext-compile-"));
   try {
     mkdirSync(join(dir, "src"));
@@ -649,7 +650,7 @@ async function compileTempProject(yml, index) {
     writeFileSync(join(dir, "src", "index.js"), index, "utf8");
     const project = await loadProject(join(dir, "twext.yml"));
     const code = compileExtension(project, loadProduct());
-    return { code, extension: executeExtension(code) };
+    return { code, extension: executeExtension(code, scratch) };
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -719,6 +720,54 @@ blocks:
   assert.equal(load.arguments.IMAGE.dataURI, "data:image/png;base64,AAA");
   assert.equal(load.arguments.IMAGE.flipRTL, true);
   assert.equal(cond.branchCount, 2);
+});
+
+test("isUnsandboxed emits a guard ahead of the extension class", async () => {
+  const { code, extension } = await compileTempProject(
+    `entryPoint: "src/index.js"
+outputPath: "dist/extension.js"
+extension:
+  id: unsandboxed
+  name: "Unsandboxed"
+  isUnsandboxed: true
+blocks:
+  - opcode: one
+    blockType: reporter
+    text: "one"
+`,
+    "export const blocks = { one() { return 1; } };\n",
+    { unsandboxed: true },
+  );
+
+  assert.equal(extension.getInfo().id, "unsandboxed");
+  assert.equal(
+    extension.getInfo().isUnsandboxed,
+    undefined,
+    "the guard belongs in the IIFE, not in getInfo",
+  );
+  assert.match(
+    code,
+    /^\(function \(Scratch\) \{\n {2}"use strict";\n\n {2}if \(!Scratch\.extensions\.unsandboxed\) \{\n {4}throw new Error\("This extension must run unsandboxed!"\);\n {2}\}\n\n {2}class UnsandboxedExtension \{/,
+  );
+  assert.throws(() => executeExtension(code), /must run unsandboxed/);
+  assert.equal(global.__registered, undefined, "the guard runs before registration");
+});
+
+test("a sandboxed extension gets no guard", async () => {
+  const { code } = await compileTempProject(
+    `entryPoint: "src/index.js"
+outputPath: "dist/extension.js"
+extension:
+  id: sandboxed
+  name: "Sandboxed"
+blocks:
+  - opcode: one
+    blockType: reporter
+    text: "one"
+`,
+    "export const blocks = { one() { return 1; } };\n",
+  );
+  assert.doesNotMatch(code, /unsandboxed/);
 });
 
 test("labels never gain executable-block fields", async () => {
@@ -936,6 +985,27 @@ blocks:
   );
   assert.ok(result.errors.some((e) => e.includes('Block "one" branchCount must be a whole')));
   assert.ok(result.errors.some((e) => e.includes('argument "A" flipRTL must be a boolean')));
+});
+
+test("validate type-checks isUnsandboxed", async () => {
+  const result = await validateTempProject(
+    `entryPoint: "src/index.js"
+outputPath: "dist/extension.js"
+extension:
+  id: unsandboxedTypes
+  isUnsandboxed: "yes"
+blocks:
+  - opcode: one
+    blockType: reporter
+    text: "one"
+`,
+    "export const blocks = { one() { return 1; } };\n",
+  );
+  assert.equal(result.ok, false);
+  assert.ok(
+    result.errors.some((e) => e.includes("extension.isUnsandboxed must be a boolean")),
+    result.errors.join("; "),
+  );
 });
 
 test("validate requires a dataURI on image, costume, and sound arguments", async () => {

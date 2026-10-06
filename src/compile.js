@@ -46,6 +46,10 @@ const BLOCK_PASSTHROUGH = [
 
 const ARGUMENT_PASSTHROUGH = ["dataURI", "flipRTL"];
 
+// TurboWarp sets Scratch.extensions.unsandboxed when it loads an extension
+// without the sandbox.
+const UNSANDBOXED_ERROR = "This extension must run unsandboxed!";
+
 // The complete set of keys each manifest shape may carry. validate.js rejects
 // everything else, so these lists are the contract that keeps compilation from
 // silently dropping fields.
@@ -56,6 +60,7 @@ export const EXTENSION_KEYS = new Set([
   "color1",
   "color2",
   "color3",
+  "isUnsandboxed",
   "menus",
   ...INFO_PASSTHROUGH,
 ]);
@@ -411,6 +416,15 @@ export function compileExtension(project, product) {
 
   const setup = dedent(resolveSetup(mod.setup).trim());
   const lines = ["(function (Scratch) {", '  "use strict";'];
+  // Before setup, so a sandboxed load fails before any of it runs.
+  if (ext.isUnsandboxed) {
+    lines.push(
+      "",
+      "  if (!Scratch.extensions.unsandboxed) {",
+      `    throw new Error(${JSON.stringify(UNSANDBOXED_ERROR)});`,
+      "  }",
+    );
+  }
   if (setup) lines.push("", indentCode(setup, 1));
   lines.push("", `  class ${className} {`, "    getInfo() {", "      return {");
   lines.push(...emitFields(info, 4));

@@ -183,6 +183,9 @@ export async function validateProject(configPath) {
         errors.push(`extension.${key} must be a string`);
       }
     }
+    if (ext.isUnsandboxed !== undefined && typeof ext.isUnsandboxed !== "boolean") {
+      errors.push("extension.isUnsandboxed must be a boolean");
+    }
     if (typeof ext.id !== "string" || !EXTENSION_ID_PATTERN.test(ext.id)) {
       errors.push("extension.id must be 1-64 lower-case letters or digits (a-z, 0-9)");
     }

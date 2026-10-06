@@ -735,10 +735,15 @@ blocks:
     blockType: reporter
     text: "one"
 `,
-    "export const blocks = { one() { return 1; } };\n",
+    `export const blocks = { one() { return 1; } };
+export function setup() {
+  Scratch.setupRan = true;
+}
+`,
     { unsandboxed: true },
   );
 
+  assert.equal(global.Scratch.setupRan, true, "setup runs in an unsandboxed environment");
   assert.equal(extension.getInfo().id, "unsandboxed");
   assert.equal(
     extension.getInfo().isUnsandboxed,
@@ -747,9 +752,10 @@ blocks:
   );
   assert.match(
     code,
-    /^\(function \(Scratch\) \{\n {2}"use strict";\n\n {2}if \(!Scratch\.extensions\.unsandboxed\) \{\n {4}throw new Error\("This extension must run unsandboxed!"\);\n {2}\}\n\n {2}class UnsandboxedExtension \{/,
+    /^\(function \(Scratch\) \{\n {2}"use strict";\n\n {2}if \(!Scratch\.extensions\.unsandboxed\) \{\n {4}throw new Error\("This extension must run unsandboxed!"\);\n {2}\}\n\n {2}Scratch\.setupRan = true;\n\n {2}class UnsandboxedExtension \{/,
   );
   assert.throws(() => executeExtension(code), /must run unsandboxed/);
+  assert.equal(global.Scratch.setupRan, undefined, "the guard runs before setup");
   assert.equal(global.__registered, undefined, "the guard runs before registration");
 });
 

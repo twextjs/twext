@@ -77,6 +77,15 @@ export function resolveNamespace(flag, hub, env = process.env) {
   return flag ?? env.TWEXTHUB_NAMESPACE ?? storedCredentialsFor(hub).namespace;
 }
 
+// The namespace of a stored session matching this token. Only a session can
+// store credentials, so this is always the caller's own account — which is not
+// necessarily the namespace being published under: an organization has no
+// account and no terms of its own.
+export function sessionNamespace(token) {
+  const credentials = loadCredentials();
+  return credentials.token === token ? credentials.namespace : undefined;
+}
+
 async function hubRequest(
   base,
   path,

@@ -76,7 +76,7 @@ Options:
   -p, --port <number>      Port for the dev server (default: 8090)
   -f, --force              Overwrite existing files (init only); confirms org delete
   -u, --url <base>         Hub API base URL (default: https://twexts.sdisk.us/api/v1)
-  -n, --namespace <name>   Account namespace (login/signup; login default: stored)
+  -n, --namespace <name>   Namespace to act as (login/signup/publish; login default: stored)
   --password <password>    Account password (login/signup; prompts when omitted)
   --display-name <name>    Display name (signup; org create/update)
   --token <token>          Bearer token override (default: \\$TWEXTHUB_TOKEN, then stored)

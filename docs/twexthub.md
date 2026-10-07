@@ -228,6 +228,8 @@ Publishing under it is publishing under any other namespace:
 twext publish --namespace acme
 ```
 
+The hub accepts the publish only from an account on the owner list, and `twext org create` already put you on it.
+
 ### Who Runs It
 
 Add the accounts that should act for the organization, and see who's on the list:

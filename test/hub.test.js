@@ -768,6 +768,123 @@ test("publish fails when terms gate blocks an automation token", async () => {
   }
 });
 
+test("publish sends to the organization namespace and accepts terms on the account", async () => {
+  const { dir, cleanup } = tmpHome();
+  let publishAttempts = 0;
+  const hub = await createHub([
+    { method: "GET", path: "/terms", reply: { status: 200, body: { version: 5 } } },
+    {
+      method: "PATCH",
+      path: "/users/kamixfox",
+      reply: (request) => ({
+        status: 200,
+        body: { namespace: "kamixfox", termsAcceptedVersion: request.body.termsAcceptedVersion },
+      }),
+    },
+    {
+      method: "POST",
+      path: "/@acme/superutilities/versions",
+      reply: (request) => {
+        if (publishAttempts++ === 0 && request.authorization === "Bearer sess-1")
+          return termsProblem;
+        return {
+          status: 201,
+          body: {
+            namespace: "acme",
+            id: "superutilities",
+            version: "1.0.0",
+            status: "published",
+            dist: { downloadUrl: "https://hub.test/x.js" },
+          },
+        };
+      },
+    },
+  ]);
+  try {
+    mkdirSync(join(dir, ".twext"));
+    writeFileSync(
+      join(dir, ".twext/config.json"),
+      JSON.stringify({ hub: hub.url, namespace: "kamixfox", token: "sess-1" }),
+    );
+    const result = await runCli(
+      ["publish", "--config", fixture("basic/twext.yml"), "--url", hub.url, "--namespace", "acme"],
+      { env: { HOME: dir } },
+    );
+    assert.equal(result.code, 0, result.stderr);
+    assert.match(result.stdout, /Published superutilities@1\.0\.0/);
+    const publishes = hub.requests.filter(
+      (r) => r.method === "POST" && r.path === "/@acme/superutilities/versions",
+    );
+    assert.equal(publishes.length, 2, "re-published after accepting terms");
+    for (const publish of publishes) {
+      assert.equal(publish.authorization, "Bearer sess-1");
+      assert.equal(publish.contentType, "application/gzip");
+    }
+    const acceptance = hub.requests.find((r) => r.method === "PATCH");
+    assert.equal(acceptance.path, "/users/kamixfox", "terms are accepted on the account");
+    assert.deepEqual(acceptance.body, { termsAcceptedVersion: 5 });
+    assert.equal(
+      hub.requests.filter((r) => r.path === "/users/acme").length,
+      0,
+      "nothing is sent to the organization's account path",
+    );
+  } finally {
+    cleanup();
+    await hub.close();
+  }
+});
+
+test("publish with an explicit token under an organization never accepts terms", async () => {
+  const { dir, cleanup } = tmpHome();
+  const hub = await createHub([
+    {
+      method: "POST",
+      path: "/@acme/superutilities/versions",
+      reply: {
+        status: 403,
+        body: {
+          detail: "The current Terms of Service have not been accepted yet.",
+          title: "Terms of Service not accepted",
+        },
+      },
+    },
+  ]);
+  try {
+    const result = await runCli(
+      [
+        "publish",
+        "--config",
+        fixture("basic/twext.yml"),
+        "--url",
+        hub.url,
+        "--namespace",
+        "acme",
+        "--token",
+        "auto-tok",
+      ],
+      { env: { HOME: dir } },
+    );
+    assert.equal(result.code, 1);
+    assert.match(
+      result.stderr,
+      /Accept the terms with a session \(twext login\) before publishing again/,
+    );
+    assert.equal(
+      hub.requests.filter((r) => r.path === "/terms" || r.method === "PATCH").length,
+      0,
+      "never accepts terms with an explicit token",
+    );
+    assert.equal(
+      hub.requests.filter((r) => r.path === "/@acme/superutilities/versions").length,
+      1,
+      "one publish attempt",
+    );
+  } finally {
+    cleanup();
+    await hub.close();
+  }
+});
+
 test("yank sends a DELETE for the published version", async () => {
   const { dir, cleanup } = tmpHome();
   const hub = await createHub([

@@ -9,10 +9,16 @@ import {
   resolveHubUrl,
   resolveNamespace,
   resolveToken,
+  sessionNamespace,
 } from "../hub.js";
 import { createProjectTarball } from "../tarball.js";
 
-export async function publishCommand(product, configPath, { url, token }, log) {
+export async function publishCommand(
+  product,
+  configPath,
+  { url, token, namespace: namespaceOverride },
+  log,
+) {
   const result = await validateProject(configPath);
   if (!result.ok) {
     for (const message of result.errors) log.error(message);
@@ -29,7 +35,7 @@ export async function publishCommand(product, configPath, { url, token }, log) {
   compileExtension(result.project, product);
 
   const hub = resolveHubUrl(url);
-  const namespace = resolveNamespace(undefined, hub);
+  const namespace = resolveNamespace(namespaceOverride, hub);
   const authToken = resolveToken(token, hub);
   const explicitToken = token ?? process.env.TWEXTHUB_TOKEN;
   if (!namespace) {
@@ -72,7 +78,11 @@ export async function publishCommand(product, configPath, { url, token }, log) {
     if (!(err instanceof HubError && err.status === 403 && /terms/i.test(err.message))) {
       return fail(err);
     }
-    if (explicitToken) {
+    // The acceptance is recorded against the account behind the session, not
+    // against the namespace being published under — an organization has no
+    // account of its own.
+    const account = sessionNamespace(authToken);
+    if (explicitToken || !account) {
       log.error(
         `${err.message} Accept the terms with a session (twext login) before publishing again.`,
       );
@@ -80,7 +90,7 @@ export async function publishCommand(product, configPath, { url, token }, log) {
     }
     log.progress("Accepting the current Terms of Service...");
     try {
-      await acceptTerms(hub, authToken, namespace);
+      await acceptTerms(hub, authToken, account);
       created = await publish();
     } catch (acceptErr) {
       return fail(acceptErr);

@@ -104,24 +104,24 @@ These commands talk to a TwextHub. [Using TwextHub](./twexthub.md) walks through
 
 ### Options
 
-| Option                     | Used by                                                   | What it does                                                                   |
-| -------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `-u`, `--url <base>`       | all hub commands                                          | Hub API base URL.                                                              |
-| `-n`, `--namespace <name>` | `login`, `signup`, `checkout`, `deprecate`, `tag`, `info` | Account namespace to act as.                                                   |
-| `--password <password>`    | `login`, `signup`                                         | Password. Prompts when omitted.                                                |
-| `--display-name <name>`    | `signup`, `org create`, `org update`                      | Display name for the new account or organization.                              |
-| `--token <token>`          | all authenticated hub commands                            | Bearer token, instead of the stored one.                                       |
-| `--read`                   | `notifications`                                           | Mark the listed notifications as read.                                         |
-| `--sort <key>`             | `search`, `org extensions`                                | `recent`, `downloads`, `updated`, or `name`.                                   |
-| `--clear`                  | `deprecate`                                               | Remove the deprecation message instead of setting one.                         |
-| `--bio <text>`             | `org create`, `org update`                                | Organization bio. An empty value clears it.                                    |
-| `--website <url>`          | `org create`, `org update`                                | Organization website. An empty value clears it.                                |
-| `--github <user>`          | `org create`, `org update`                                | GitHub username shown on the profile. An empty value clears it.                |
-| `--license <id>`           | `org extensions`                                          | Only extensions under this SPDX license, e.g. `MIT`.                           |
-| `-f`, `--force`            | `init`, `org delete`                                      | Overwrite existing files; required by `org delete`.                            |
-| `--name <name>`            | `token create`                                            | Name for the token. Defaults to `CI`.                                          |
-| `--scope <scope>`          | `token create`                                            | `publish` and/or `yank`, repeatable or comma-separated. Defaults to `publish`. |
-| `--expires-in-days <days>` | `token create`                                            | Lifetime of the token.                                                         |
+| Option                     | Used by                                                              | What it does                                                                   |
+| -------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `-u`, `--url <base>`       | all hub commands                                                     | Hub API base URL.                                                              |
+| `-n`, `--namespace <name>` | `login`, `signup`, `publish`, `checkout`, `deprecate`, `tag`, `info` | Namespace to act as — the account, or an organization to publish under.        |
+| `--password <password>`    | `login`, `signup`                                                    | Password. Prompts when omitted.                                                |
+| `--display-name <name>`    | `signup`, `org create`, `org update`                                 | Display name for the new account or organization.                              |
+| `--token <token>`          | all authenticated hub commands                                       | Bearer token, instead of the stored one.                                       |
+| `--read`                   | `notifications`                                                      | Mark the listed notifications as read.                                         |
+| `--sort <key>`             | `search`, `org extensions`                                           | `recent`, `downloads`, `updated`, or `name`.                                   |
+| `--clear`                  | `deprecate`                                                          | Remove the deprecation message instead of setting one.                         |
+| `--bio <text>`             | `org create`, `org update`                                           | Organization bio. An empty value clears it.                                    |
+| `--website <url>`          | `org create`, `org update`                                           | Organization website. An empty value clears it.                                |
+| `--github <user>`          | `org create`, `org update`                                           | GitHub username shown on the profile. An empty value clears it.                |
+| `--license <id>`           | `org extensions`                                                     | Only extensions under this SPDX license, e.g. `MIT`.                           |
+| `-f`, `--force`            | `init`, `org delete`                                                 | Overwrite existing files; required by `org delete`.                            |
+| `--name <name>`            | `token create`                                                       | Name for the token. Defaults to `CI`.                                          |
+| `--scope <scope>`          | `token create`                                                       | `publish` and/or `yank`, repeatable or comma-separated. Defaults to `publish`. |
+| `--expires-in-days <days>` | `token create`                                                       | Lifetime of the token.                                                         |
 
 `login` and `signup` prompt for anything you leave out, and `login` reads the stored namespace when you don't pass `-n`.
 

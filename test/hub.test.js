@@ -334,7 +334,7 @@ test("login shows the instance details before it prompts", async () => {
       assert.equal(hub.requests.filter((r) => r.path === path).length, 1, `${path} probed once`);
     }
     const details = login.stdout.match(
-      / {2}• TwextHub\n {2}• 2\.0\.2\n {2}• A lightweight registry of Twexts/,
+      / {2}• TwextHub\n {2}• Version 2\.0\.2\n {2}• A lightweight registry of Twexts/,
     );
     assert.ok(details, login.stdout);
     assert.ok(details.index < login.stdout.indexOf("Logged in as acme"));

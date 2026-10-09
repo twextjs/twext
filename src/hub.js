@@ -11,8 +11,13 @@ import {
 import { homedir } from "node:os";
 import { join } from "node:path";
 
+import { loadProduct } from "./config.js";
+
 const CONFIG_DIR = join(homedir(), ".twext");
 const CONFIG_FILE = join(CONFIG_DIR, "config.json");
+
+const product = loadProduct();
+const USER_AGENT = `${product.name}/${product.version}`; // Twext/5.63.2 for example
 
 export const NAMESPACE_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/;
 
@@ -135,6 +140,7 @@ async function hubRequest(
     response = await fetch(url, {
       method,
       headers: {
+        "user-agent": USER_AGENT,
         ...(raw !== undefined
           ? { "content-type": contentType }
           : body === undefined

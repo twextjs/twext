@@ -75,7 +75,7 @@ Options:
   -o, --out <file>         Override the output path (build, dev)
   -p, --port <number>      Port for the dev server (default: 8090)
   -f, --force              Overwrite existing files (init only); confirms org delete
-  -u, --url <base>         Hub API base URL (default: https://twexts.sdisk.us/api/v1)
+  -u, --url <base>         Hub API base URL (default: https://twexts.sdisk.us/api/v2)
   -n, --namespace <name>   Namespace to act as (login/signup/publish; login default: stored)
   --password <password>    Account password (login/signup; prompts when omitted)
   --display-name <name>    Display name (signup; org create/update)

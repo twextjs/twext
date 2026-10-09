@@ -70,7 +70,9 @@ Every hub command can override those three without touching the file, which is w
 | Namespace | `-n`, `--namespace` | `TWEXTHUB_NAMESPACE` |
 | Token     | `--token`           | `TWEXTHUB_TOKEN`     |
 
-The default hub is `https://twexts.sdisk.us/api/v1`. Point `-u` somewhere else and the stored credentials are ignored, because they belong to the hub that issued them. The hub must be served over HTTPS, with the exception of `localhost`, `127.0.0.1`, and `::1` so you can run one while developing.
+The default hub is `https://twexts.sdisk.us/api/v2`. Point `-u` somewhere else and the stored credentials are ignored, because they belong to the hub that issued them. The hub must be served over HTTPS, with the exception of `localhost`, `127.0.0.1`, and `::1` so you can run one while developing.
+
+Credentials stored against an older API version of the official hub (`https://twexts.sdisk.us/api/v1`) are moved to the current one on the next read, token and namespace included. Your session is still valid, so you don't have to log in again.
 
 ## ➕ Publishing
 

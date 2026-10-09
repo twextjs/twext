@@ -7,7 +7,12 @@ const CONFIG_FILE = join(CONFIG_DIR, "config.json");
 
 export const NAMESPACE_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/;
 
-export const DEFAULT_HUB_URL = "https://twexts.sdisk.us/api/v1";
+export const DEFAULT_HUB_URL = "https://twexts.sdisk.us/api/v2";
+
+// Official hub deployments that no longer exist. The hub keeps its database
+// across an API version bump, so the session issued under a retired URL is
+// still valid once the URL moves.
+const RETIRED_HUB_URLS = ["https://twexts.sdisk.us/api/v1"];
 
 export class HubError extends Error {
   constructor(message, status, data) {
@@ -18,11 +23,17 @@ export class HubError extends Error {
 }
 
 export function loadCredentials() {
+  let credentials;
   try {
-    return JSON.parse(readFileSync(CONFIG_FILE, "utf8"));
+    credentials = JSON.parse(readFileSync(CONFIG_FILE, "utf8"));
   } catch {
     return {};
   }
+  if (RETIRED_HUB_URLS.includes(canonicalHubUrl(credentials.hub))) {
+    credentials = { ...credentials, hub: DEFAULT_HUB_URL };
+    saveCredentials(credentials);
+  }
+  return credentials;
 }
 
 export function saveCredentials(credentials) {

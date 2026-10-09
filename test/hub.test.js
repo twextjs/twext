@@ -637,10 +637,104 @@ test("resolveHubUrl falls back to the public hub", () => {
     assert.equal(result.status, 0, result.stderr);
     assert.equal(
       result.stdout.trim(),
-      "https://twexts.sdisk.us/api/v1 https://example.com/v1 https://custom.test",
+      "https://twexts.sdisk.us/api/v2 https://example.com/v1 https://custom.test",
     );
   } finally {
     cleanup();
+  }
+});
+
+test("a stored hub URL on a retired API version moves to the current one", () => {
+  const { dir, cleanup } = tmpHome();
+  try {
+    const cfgDir = join(dir, ".twext");
+    mkdirSync(cfgDir, { recursive: true });
+    const configPath = join(cfgDir, "config.json");
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        hub: "https://twexts.sdisk.us/api/v1/",
+        namespace: "acme",
+        token: "sess-1",
+      }),
+    );
+    const hubModule = fileURLToPath(new URL("../src/hub.js", import.meta.url));
+    const script = `import { resolveHubUrl, resolveToken, resolveNamespace } from ${JSON.stringify(hubModule)};
+      const hub = resolveHubUrl(undefined, {});
+      console.log([hub, resolveToken(undefined, hub, {}), resolveNamespace(undefined, hub, {})].join("|"));`;
+    const result = spawnSync(process.execPath, ["--input-type=module", "-e", script], {
+      env: { ...process.env, HOME: dir },
+      encoding: "utf8",
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout.trim(), "https://twexts.sdisk.us/api/v2|sess-1|acme");
+    assert.deepEqual(JSON.parse(readFileSync(configPath, "utf8")), {
+      hub: "https://twexts.sdisk.us/api/v2",
+      namespace: "acme",
+      token: "sess-1",
+    });
+    assert.equal(statSync(configPath).mode & 0o777, 0o600);
+  } finally {
+    cleanup();
+  }
+});
+
+test("only the retired official URL is rewritten; overrides still win", () => {
+  const { dir, cleanup } = tmpHome();
+  try {
+    const cfgDir = join(dir, ".twext");
+    mkdirSync(cfgDir, { recursive: true });
+    const configPath = join(cfgDir, "config.json");
+    const stored = { hub: "https://custom.test/api/v1", namespace: "acme", token: "sess-1" };
+    writeFileSync(configPath, JSON.stringify(stored));
+    const hubModule = fileURLToPath(new URL("../src/hub.js", import.meta.url));
+    const script = `import { resolveHubUrl } from ${JSON.stringify(hubModule)};
+      console.log([
+        resolveHubUrl(undefined, {}),
+        resolveHubUrl("https://flag.test/v1", {}),
+        resolveHubUrl(undefined, { TWEXTHUB_URL: "https://env.test/v1" }),
+      ].join(" "));`;
+    const result = spawnSync(process.execPath, ["--input-type=module", "-e", script], {
+      env: { ...process.env, HOME: dir },
+      encoding: "utf8",
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(
+      result.stdout.trim(),
+      "https://custom.test/api/v1 https://flag.test/v1 https://env.test/v1",
+    );
+    assert.deepEqual(JSON.parse(readFileSync(configPath, "utf8")), stored);
+  } finally {
+    cleanup();
+  }
+});
+
+test("a hub command rewrites the stored retired URL while keeping the session", async () => {
+  const { dir, cleanup } = tmpHome();
+  const hub = await createHub([
+    {
+      method: "GET",
+      path: "/search",
+      reply: { status: 200, body: { data: [], _links: { self: "x", next: null, prev: null } } },
+    },
+  ]);
+  try {
+    mkdirSync(join(dir, ".twext"));
+    writeFileSync(
+      join(dir, ".twext/config.json"),
+      JSON.stringify({ hub: "https://twexts.sdisk.us/api/v1", namespace: "acme", token: "sess-1" }),
+    );
+    const search = await runCli(["search", "blocks", "--url", hub.url], { env: { HOME: dir } });
+    assert.equal(search.code, 0, search.stderr);
+    assert.match(search.stdout, /No extensions matched "blocks"/);
+    assert.deepEqual(JSON.parse(readFileSync(join(dir, ".twext", "config.json"), "utf8")), {
+      hub: "https://twexts.sdisk.us/api/v2",
+      namespace: "acme",
+      token: "sess-1",
+    });
+  } finally {
+    cleanup();
+    await hub.close();
   }
 });
 

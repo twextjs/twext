@@ -176,11 +176,13 @@ twext publish --namespace acme
 
 | Setting   | Flag                | Environment variable | Default                          |
 | --------- | ------------------- | -------------------- | -------------------------------- |
-| Hub URL   | `-u`, `--url`       | `TWEXTHUB_URL`       | `https://twexts.sdisk.us/api/v1` |
+| Hub URL   | `-u`, `--url`       | `TWEXTHUB_URL`       | `https://twexts.sdisk.us/api/v2` |
 | Token     | `--token`           | `TWEXTHUB_TOKEN`     | the stored session               |
 | Namespace | `-n`, `--namespace` | `TWEXTHUB_NAMESPACE` | the stored namespace             |
 
 Stored credentials only apply to the hub they were created against. Pointing `-u` at a different hub ignores the stored token and namespace, and `twext logout` only revokes at the stored one.
+
+A stored URL on a retired API version of the official hub is rewritten to the current one, token and namespace included. Sessions outlive the upgrade, so there is nothing to log in to again.
 
 The hub has to be served over HTTPS. `http://` is accepted for `localhost`, `127.0.0.1`, and `::1`, so you can run one locally; anywhere else is refused before credentials leave the machine.
 

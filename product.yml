@@ -1,6 +1,6 @@
 name: "Twext"
 command: "twext"
-version: "2.1.0"
+version: "2.1.1"
 tagline: "Build custom TurboWarp extensions with JavaScript modules (ESM)."
 author: "Twext Team"
 homepage: "https://github.com/twext/twext"

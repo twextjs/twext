@@ -838,41 +838,68 @@ test("a stored hub URL on a retired API version moves to the current one", () =>
       token: "sess-1",
     });
     assert.equal(statSync(configPath).mode & 0o777, 0o600);
+    assert.deepEqual(readdirSync(cfgDir), ["config.json"]);
   } finally {
     cleanup();
   }
 });
 
-test("migrated credentials remain usable when the credentials file cannot be updated", () => {
-  const { dir, cleanup } = tmpHome();
-  try {
-    mkdirSync(join(dir, ".twext"));
-    const configPath = join(dir, ".twext", "config.json");
-    const stored = { hub: "https://twexts.sdisk.us/api/v1", namespace: "acme", token: "sess-1" };
-    writeFileSync(configPath, JSON.stringify(stored));
-    const hubModule = fileURLToPath(new URL("../src/hub.js", import.meta.url));
-    const script = `import fs from "node:fs";
-      import { syncBuiltinESMExports } from "node:module";
-      fs.writeFileSync = () => { throw new Error("Read-only filesystem"); };
-      syncBuiltinESMExports();
-      const { resolveHubUrl, resolveToken, resolveNamespace } = await import(${JSON.stringify(hubModule)});
-      const hub = resolveHubUrl(undefined, {});
-      console.log([hub, resolveToken(undefined, hub, {}), resolveNamespace(undefined, hub, {})].join("|"));`;
-    const result = spawnSync(process.execPath, ["--input-type=module", "-e", script], {
-      env: { ...process.env, HOME: dir },
-      encoding: "utf8",
-    });
-    assert.equal(result.status, 0, result.stderr);
-    assert.equal(result.stdout.trim(), "https://twexts.sdisk.us/api/v2|sess-1|acme");
-    assert.ok(result.stderr.includes(configPath));
-    assert.match(result.stderr, /Using migrated credentials for this command/);
-    assert.match(result.stderr, /credentials file still needs updating/);
-    assert.doesNotMatch(result.stderr, /sess-1/);
-    assert.deepEqual(JSON.parse(readFileSync(configPath, "utf8")), stored);
-  } finally {
-    cleanup();
-  }
-});
+for (const failure of ["open", "write", "partial write", "rename"]) {
+  test(`migrated credentials survive a failed ${failure}`, () => {
+    const { dir, cleanup } = tmpHome();
+    try {
+      mkdirSync(join(dir, ".twext"));
+      const configPath = join(dir, ".twext", "config.json");
+      const stored = { hub: "https://twexts.sdisk.us/api/v1", namespace: "acme", token: "sess-1" };
+      writeFileSync(configPath, JSON.stringify(stored));
+      const hubModule = fileURLToPath(new URL("../src/hub.js", import.meta.url));
+      const script = `import fs from "node:fs";
+        import { syncBuiltinESMExports } from "node:module";
+        import assert from "node:assert/strict";
+        const failure = ${JSON.stringify(failure)};
+        const modes = [];
+        const fail = () => { throw new Error("Simulated filesystem failure"); };
+        if (failure === "open") {
+          const open = fs.openSync;
+          fs.openSync = (file, flags, mode) => {
+            if (flags === "wx") fail();
+            return open(file, flags, mode);
+          };
+        }
+        else if (failure === "rename") fs.renameSync = fail;
+        else {
+          const write = fs.writeFileSync;
+          fs.writeFileSync = (file, data, options) => {
+            if (failure === "partial write") {
+              write(file, data.slice(0, 10), options);
+              const mode = typeof file === "number" ? fs.fstatSync(file).mode : fs.statSync(file).mode;
+              modes.push(mode & 0o777);
+            }
+            fail();
+          };
+        }
+        syncBuiltinESMExports();
+        const { resolveHubUrl, resolveToken, resolveNamespace } = await import(${JSON.stringify(hubModule)});
+        const hub = resolveHubUrl(undefined, {});
+        console.log([hub, resolveToken(undefined, hub, {}), resolveNamespace(undefined, hub, {})].join("|"));
+        if (failure === "partial write") assert.deepEqual(modes, [0o600, 0o600, 0o600]);`;
+      const result = spawnSync(process.execPath, ["--input-type=module", "-e", script], {
+        env: { ...process.env, HOME: dir },
+        encoding: "utf8",
+      });
+      assert.equal(result.status, 0, result.stderr);
+      assert.equal(result.stdout.trim(), "https://twexts.sdisk.us/api/v2|sess-1|acme");
+      assert.ok(result.stderr.includes(configPath));
+      assert.match(result.stderr, /Using migrated credentials for this command/);
+      assert.match(result.stderr, /credentials file still needs updating/);
+      assert.doesNotMatch(result.stderr, /sess-1/);
+      assert.equal(readFileSync(configPath, "utf8"), JSON.stringify(stored));
+      assert.deepEqual(readdirSync(join(dir, ".twext")), ["config.json"]);
+    } finally {
+      cleanup();
+    }
+  });
+}
 
 test("only the retired official URL is rewritten; overrides still win", () => {
   const { dir, cleanup } = tmpHome();

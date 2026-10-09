@@ -1,4 +1,13 @@
-import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import {
+  closeSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -44,8 +53,19 @@ export function loadCredentials() {
 
 export function saveCredentials(credentials) {
   mkdirSync(CONFIG_DIR, { recursive: true });
-  writeFileSync(CONFIG_FILE, `${JSON.stringify(credentials, null, 2)}\n`, { mode: 0o600 });
-  chmodSync(CONFIG_FILE, 0o600);
+  const data = `${JSON.stringify(credentials, null, 2)}\n`;
+  const temporaryFile = join(CONFIG_DIR, `config-${randomUUID()}.tmp`);
+  const fd = openSync(temporaryFile, "wx", 0o600);
+  try {
+    try {
+      writeFileSync(fd, data);
+    } finally {
+      closeSync(fd);
+    }
+    renameSync(temporaryFile, CONFIG_FILE);
+  } finally {
+    rmSync(temporaryFile, { force: true });
+  }
 }
 
 export function clearCredentials() {

@@ -74,6 +74,7 @@ function createHub(routes) {
       typeof route?.reply === "function"
         ? route.reply(request)
         : (route?.reply ?? { status: 404, body: { title: "Not Found" } });
+    if (reply === null) return;
     if (reply.status === 204) {
       res.writeHead(204);
       res.end();
@@ -378,6 +379,46 @@ test("login goes ahead when only some of the probes answer", async () => {
     await hub.close();
   }
 });
+
+for (const respondingPath of ["/meta", "/terms", "/stats", null]) {
+  test(`login bounds stalled probes when ${respondingPath ?? "no endpoint"} responds`, async () => {
+    const { dir, cleanup } = tmpHome();
+    const hub = await createHub([
+      ...["/meta", "/terms", "/stats"].map((path) => ({
+        method: "GET",
+        path,
+        reply: () =>
+          path === respondingPath
+            ? { status: 200, body: { name: "Test Hub", version: "2.0", tagline: "Test registry" } }
+            : null,
+      })),
+      {
+        method: "POST",
+        path: "/sessions",
+        reply: { status: 201, body: { token: "sess-1", user: { role: "normal" } } },
+      },
+    ]);
+    try {
+      const login = await runCli(
+        ["login", "--url", hub.url, "--namespace", "acme", "--password", "pw"],
+        { env: { HOME: dir }, timeout: 5000 },
+      );
+      assert.equal(login.code, respondingPath ? 0 : 1, login.stderr);
+      if (respondingPath) assert.match(login.stdout, /Logged in as acme/);
+      else assert.match(login.stderr, /down, or you are offline/);
+      if (respondingPath === "/meta") {
+        assert.match(login.stdout, /Test Hub/);
+        assert.match(login.stdout, /Version 2\.0/);
+        assert.match(login.stdout, /Test registry/);
+      } else {
+        assert.doesNotMatch(login.stdout, /Test Hub|Version 2\.0|Test registry/);
+      }
+    } finally {
+      cleanup();
+      await hub.close();
+    }
+  });
+}
 
 test("stored credentials are only used for the hub they were saved for", () => {
   const { dir, cleanup } = tmpHome();
@@ -797,6 +838,37 @@ test("a stored hub URL on a retired API version moves to the current one", () =>
       token: "sess-1",
     });
     assert.equal(statSync(configPath).mode & 0o777, 0o600);
+  } finally {
+    cleanup();
+  }
+});
+
+test("migrated credentials remain usable when the credentials file cannot be updated", () => {
+  const { dir, cleanup } = tmpHome();
+  try {
+    mkdirSync(join(dir, ".twext"));
+    const configPath = join(dir, ".twext", "config.json");
+    const stored = { hub: "https://twexts.sdisk.us/api/v1", namespace: "acme", token: "sess-1" };
+    writeFileSync(configPath, JSON.stringify(stored));
+    const hubModule = fileURLToPath(new URL("../src/hub.js", import.meta.url));
+    const script = `import fs from "node:fs";
+      import { syncBuiltinESMExports } from "node:module";
+      fs.writeFileSync = () => { throw new Error("Read-only filesystem"); };
+      syncBuiltinESMExports();
+      const { resolveHubUrl, resolveToken, resolveNamespace } = await import(${JSON.stringify(hubModule)});
+      const hub = resolveHubUrl(undefined, {});
+      console.log([hub, resolveToken(undefined, hub, {}), resolveNamespace(undefined, hub, {})].join("|"));`;
+    const result = spawnSync(process.execPath, ["--input-type=module", "-e", script], {
+      env: { ...process.env, HOME: dir },
+      encoding: "utf8",
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout.trim(), "https://twexts.sdisk.us/api/v2|sess-1|acme");
+    assert.ok(result.stderr.includes(configPath));
+    assert.match(result.stderr, /Using migrated credentials for this command/);
+    assert.match(result.stderr, /credentials file still needs updating/);
+    assert.doesNotMatch(result.stderr, /sess-1/);
+    assert.deepEqual(JSON.parse(readFileSync(configPath, "utf8")), stored);
   } finally {
     cleanup();
   }

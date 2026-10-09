@@ -31,7 +31,13 @@ export function loadCredentials() {
   }
   if (RETIRED_HUB_URLS.includes(canonicalHubUrl(credentials.hub))) {
     credentials = { ...credentials, hub: DEFAULT_HUB_URL };
-    saveCredentials(credentials);
+    try {
+      saveCredentials(credentials);
+    } catch {
+      console.warn(
+        `Could not update ${CONFIG_FILE}. Using migrated credentials for this command; the credentials file still needs updating.`,
+      );
+    }
   }
   return credentials;
 }
@@ -48,6 +54,7 @@ export function clearCredentials() {
 
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
 const REQUEST_TIMEOUT_MS = 30_000;
+const LOGIN_PROBE_TIMEOUT_MS = 2_000;
 
 function canonicalHubUrl(url) {
   return typeof url === "string" ? url.replace(/\/+$/, "") : url;
@@ -100,7 +107,7 @@ export function sessionNamespace(token) {
 async function hubRequest(
   base,
   path,
-  { method = "GET", token, body, raw, contentType, binary } = {},
+  { method = "GET", token, body, raw, contentType, binary, timeout = REQUEST_TIMEOUT_MS } = {},
 ) {
   const url = `${base.replace(/\/+$/, "")}/${String(path).replace(/^\/+/, "")}`;
   let response;
@@ -117,13 +124,11 @@ async function hubRequest(
       },
       body: raw !== undefined ? raw : body === undefined ? undefined : JSON.stringify(body),
       redirect: "error",
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeout),
     });
   } catch (err) {
     if (err.name === "TimeoutError" || err.name === "AbortError") {
-      throw new HubError(
-        `The hub at ${base} did not respond within ${REQUEST_TIMEOUT_MS / 1000}s.`,
-      );
+      throw new HubError(`The hub at ${base} did not respond within ${timeout / 1000}s.`);
     }
     throw new HubError(`Could not reach the hub at ${base}: ${err.message}`);
   }
@@ -151,11 +156,11 @@ async function hubRequest(
 // counts as reachable: an older hub may miss a route, and a 404 is not a hub
 // that is down. /meta carries what the terminal shows above the prompt.
 export async function probeHub(base) {
-  const probes = await Promise.allSettled([
-    hubRequest(base, "/meta"),
-    hubRequest(base, "/terms"),
-    hubRequest(base, "/stats"),
-  ]);
+  const probes = await Promise.allSettled(
+    ["/meta", "/terms", "/stats"].map((path) =>
+      hubRequest(base, path, { timeout: LOGIN_PROBE_TIMEOUT_MS }),
+    ),
+  );
   const [meta] = probes;
   return {
     up: probes.some(

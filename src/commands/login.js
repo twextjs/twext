@@ -16,7 +16,7 @@ export async function loginCommand(product, { url, namespace, password }, log) {
     log.error("The instance you are trying to reach is down, or you are offline.");
     return false;
   }
-  
+
   if (meta) {
     log.bullet(meta.name);
     log.bullet(`Version ${meta.version}`);

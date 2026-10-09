@@ -1,4 +1,13 @@
-import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import {
+  closeSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -7,7 +16,12 @@ const CONFIG_FILE = join(CONFIG_DIR, "config.json");
 
 export const NAMESPACE_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/;
 
-export const DEFAULT_HUB_URL = "https://twexts.sdisk.us/api/v1";
+export const DEFAULT_HUB_URL = "https://twexts.sdisk.us/api/v2";
+
+// Official hub deployments that no longer exist. The hub keeps its database
+// across an API version bump, so the session issued under a retired URL is
+// still valid once the URL moves.
+const RETIRED_HUB_URLS = ["https://twexts.sdisk.us/api/v1"];
 
 export class HubError extends Error {
   constructor(message, status, data) {
@@ -18,17 +32,40 @@ export class HubError extends Error {
 }
 
 export function loadCredentials() {
+  let credentials;
   try {
-    return JSON.parse(readFileSync(CONFIG_FILE, "utf8"));
+    credentials = JSON.parse(readFileSync(CONFIG_FILE, "utf8"));
   } catch {
     return {};
   }
+  if (RETIRED_HUB_URLS.includes(canonicalHubUrl(credentials.hub))) {
+    credentials = { ...credentials, hub: DEFAULT_HUB_URL };
+    try {
+      saveCredentials(credentials);
+    } catch {
+      console.warn(
+        `Could not update ${CONFIG_FILE}. Using migrated credentials for this command; the credentials file still needs updating.`,
+      );
+    }
+  }
+  return credentials;
 }
 
 export function saveCredentials(credentials) {
   mkdirSync(CONFIG_DIR, { recursive: true });
-  writeFileSync(CONFIG_FILE, `${JSON.stringify(credentials, null, 2)}\n`, { mode: 0o600 });
-  chmodSync(CONFIG_FILE, 0o600);
+  const data = `${JSON.stringify(credentials, null, 2)}\n`;
+  const temporaryFile = join(CONFIG_DIR, `config-${randomUUID()}.tmp`);
+  const fd = openSync(temporaryFile, "wx", 0o600);
+  try {
+    try {
+      writeFileSync(fd, data);
+    } finally {
+      closeSync(fd);
+    }
+    renameSync(temporaryFile, CONFIG_FILE);
+  } finally {
+    rmSync(temporaryFile, { force: true });
+  }
 }
 
 export function clearCredentials() {
@@ -37,6 +74,7 @@ export function clearCredentials() {
 
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
 const REQUEST_TIMEOUT_MS = 30_000;
+const LOGIN_PROBE_TIMEOUT_MS = 2_000;
 
 function canonicalHubUrl(url) {
   return typeof url === "string" ? url.replace(/\/+$/, "") : url;
@@ -89,7 +127,7 @@ export function sessionNamespace(token) {
 async function hubRequest(
   base,
   path,
-  { method = "GET", token, body, raw, contentType, binary } = {},
+  { method = "GET", token, body, raw, contentType, binary, timeout = REQUEST_TIMEOUT_MS } = {},
 ) {
   const url = `${base.replace(/\/+$/, "")}/${String(path).replace(/^\/+/, "")}`;
   let response;
@@ -106,13 +144,11 @@ async function hubRequest(
       },
       body: raw !== undefined ? raw : body === undefined ? undefined : JSON.stringify(body),
       redirect: "error",
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeout),
     });
   } catch (err) {
     if (err.name === "TimeoutError" || err.name === "AbortError") {
-      throw new HubError(
-        `The hub at ${base} did not respond within ${REQUEST_TIMEOUT_MS / 1000}s.`,
-      );
+      throw new HubError(`The hub at ${base} did not respond within ${timeout / 1000}s.`);
     }
     throw new HubError(`Could not reach the hub at ${base}: ${err.message}`);
   }
@@ -133,6 +169,27 @@ async function hubRequest(
     throw new HubError(detail, response.status, data);
   }
   return data;
+}
+
+// Public reads, made before an interactive login so a hub that is down or a
+// machine that is offline fails before anything is typed. Any answer under 500
+// counts as reachable: an older hub may miss a route, and a 404 is not a hub
+// that is down. /meta carries what the terminal shows above the prompt.
+export async function probeHub(base) {
+  const probes = await Promise.allSettled(
+    ["/meta", "/terms", "/stats"].map((path) =>
+      hubRequest(base, path, { timeout: LOGIN_PROBE_TIMEOUT_MS }),
+    ),
+  );
+  const [meta] = probes;
+  return {
+    up: probes.some(
+      (probe) =>
+        probe.status === "fulfilled" ||
+        (probe.reason instanceof HubError && probe.reason.status < 500),
+    ),
+    meta: meta.status === "fulfilled" ? meta.value : null,
+  };
 }
 
 export async function login(base, namespace, password) {

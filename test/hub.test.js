@@ -74,6 +74,7 @@ function createHub(routes) {
       typeof route?.reply === "function"
         ? route.reply(request)
         : (route?.reply ?? { status: 404, body: { title: "Not Found" } });
+    if (reply === null) return;
     if (reply.status === 204) {
       res.writeHead(204);
       res.end();
@@ -188,6 +189,7 @@ test("login stores credentials and publish auto-accepts terms with a session tok
     assert.deepEqual(config, { hub: hub.url, namespace: "acme", token: "sess-1" });
 
     const loginRequestsBeforePublish = hub.requests.filter((r) => r.path === "/sessions").length;
+    const termReadsBeforePublish = hub.requests.filter((r) => r.path === "/terms").length;
 
     const publish = await runCli(
       ["publish", "--config", fixture("basic/twext.yml"), "--url", hub.url],
@@ -200,7 +202,11 @@ test("login stores credentials and publish auto-accepts terms with a session tok
       loginRequestsBeforePublish,
       "no new login on publish",
     );
-    assert.equal(hub.requests.filter((r) => r.path === "/terms").length, 1, "terms read once");
+    assert.equal(
+      hub.requests.filter((r) => r.path === "/terms").length,
+      termReadsBeforePublish + 1,
+      "terms read once",
+    );
     const acceptance = hub.requests.find((r) => r.method === "PATCH");
     assert.equal(acceptance.path, "/users/acme");
     assert.deepEqual(acceptance.body, { termsAcceptedVersion: 3 });
@@ -260,6 +266,159 @@ test("login reports rejected credentials without signing up", async () => {
     await hub.close();
   }
 });
+
+test("login refuses to prompt when the hub does not answer", async () => {
+  const { dir, cleanup } = tmpHome();
+  const unavailable = { status: 503, body: { title: "Service Unavailable" } };
+  const hub = await createHub(
+    ["/meta", "/terms", "/stats"].map((path) => ({ method: "GET", path, reply: unavailable })),
+  );
+  try {
+    const down = await runCli(["login", "--url", hub.url], { env: { HOME: dir } });
+    assert.equal(down.code, 1);
+    assert.match(down.stderr, /The instance you are trying to reach is down, or you are offline\./);
+    assert.doesNotMatch(down.stderr, /Namespace/, "never reaches the prompt");
+    assert.equal(hub.requests.length, 3, "only the probes are sent");
+    assert.equal(hub.requests.filter((r) => r.path === "/sessions").length, 0);
+    assert.ok(!existsSync(join(dir, ".twext", "config.json")));
+
+    const offline = await runCli(["login", "--url", "http://127.0.0.1:1"], { env: { HOME: dir } });
+    assert.equal(offline.code, 1);
+    assert.match(
+      offline.stderr,
+      /The instance you are trying to reach is down, or you are offline\./,
+    );
+  } finally {
+    cleanup();
+    await hub.close();
+  }
+});
+
+test("login shows the instance details before it prompts", async () => {
+  const { dir, cleanup } = tmpHome();
+  const hub = await createHub([
+    {
+      method: "GET",
+      path: "/meta",
+      reply: {
+        status: 200,
+        body: {
+          name: "TwextHub",
+          version: "2.0.2",
+          tagline: "A lightweight registry of Twexts",
+          homepage: "https://twexts.sdisk.us",
+        },
+      },
+    },
+    { method: "GET", path: "/terms", reply: { status: 200, body: { version: 3 } } },
+    { method: "GET", path: "/stats", reply: { status: 200, body: { published: 12 } } },
+    {
+      method: "POST",
+      path: "/sessions",
+      reply: {
+        status: 201,
+        body: {
+          session: { id: "s-1" },
+          token: "sess-1",
+          user: { namespace: "acme", role: "normal" },
+        },
+      },
+    },
+  ]);
+  try {
+    const login = await runCli(
+      ["login", "--url", hub.url, "--namespace", "acme", "--password", "pw"],
+      { env: { HOME: dir } },
+    );
+    assert.equal(login.code, 0, login.stderr);
+    for (const path of ["/meta", "/terms", "/stats"]) {
+      assert.equal(hub.requests.filter((r) => r.path === path).length, 1, `${path} probed once`);
+    }
+    const details = login.stdout.match(
+      / {2}• TwextHub\n {2}• Version 2\.0\.2\n {2}• A lightweight registry of Twexts/,
+    );
+    assert.ok(details, login.stdout);
+    assert.ok(details.index < login.stdout.indexOf("Logged in as acme"));
+  } finally {
+    cleanup();
+    await hub.close();
+  }
+});
+
+test("login goes ahead when only some of the probes answer", async () => {
+  const { dir, cleanup } = tmpHome();
+  const hub = await createHub([
+    { method: "GET", path: "/terms", reply: { status: 200, body: { version: 3 } } },
+    {
+      method: "POST",
+      path: "/sessions",
+      reply: {
+        status: 201,
+        body: {
+          session: { id: "s-1" },
+          token: "sess-1",
+          user: { namespace: "acme", role: "normal" },
+        },
+      },
+    },
+  ]);
+  try {
+    const login = await runCli(
+      ["login", "--url", hub.url, "--namespace", "acme", "--password", "pw"],
+      { env: { HOME: dir } },
+    );
+    assert.equal(login.code, 0, login.stderr);
+    assert.match(login.stdout, /Logged in as acme/);
+    assert.doesNotMatch(login.stdout, /undefined/, "no details are printed without /meta");
+    assert.equal(
+      JSON.parse(readFileSync(join(dir, ".twext", "config.json"), "utf8")).token,
+      "sess-1",
+    );
+  } finally {
+    cleanup();
+    await hub.close();
+  }
+});
+
+for (const respondingPath of ["/meta", "/terms", "/stats", null]) {
+  test(`login bounds stalled probes when ${respondingPath ?? "no endpoint"} responds`, async () => {
+    const { dir, cleanup } = tmpHome();
+    const hub = await createHub([
+      ...["/meta", "/terms", "/stats"].map((path) => ({
+        method: "GET",
+        path,
+        reply: () =>
+          path === respondingPath
+            ? { status: 200, body: { name: "Test Hub", version: "2.0", tagline: "Test registry" } }
+            : null,
+      })),
+      {
+        method: "POST",
+        path: "/sessions",
+        reply: { status: 201, body: { token: "sess-1", user: { role: "normal" } } },
+      },
+    ]);
+    try {
+      const login = await runCli(
+        ["login", "--url", hub.url, "--namespace", "acme", "--password", "pw"],
+        { env: { HOME: dir }, timeout: 5000 },
+      );
+      assert.equal(login.code, respondingPath ? 0 : 1, login.stderr);
+      if (respondingPath) assert.match(login.stdout, /Logged in as acme/);
+      else assert.match(login.stderr, /down, or you are offline/);
+      if (respondingPath === "/meta") {
+        assert.match(login.stdout, /Test Hub/);
+        assert.match(login.stdout, /Version 2\.0/);
+        assert.match(login.stdout, /Test registry/);
+      } else {
+        assert.doesNotMatch(login.stdout, /Test Hub|Version 2\.0|Test registry/);
+      }
+    } finally {
+      cleanup();
+      await hub.close();
+    }
+  });
+}
 
 test("stored credentials are only used for the hub they were saved for", () => {
   const { dir, cleanup } = tmpHome();
@@ -382,8 +541,13 @@ test("hub requests reject redirects so password bodies are never replayed", asyn
   });
   let targetPort;
   const source = createServer((req, res) => {
-    res.writeHead(302, { location: `http://127.0.0.1:${targetPort}/sessions` });
-    res.end();
+    if (req.url === "/sessions") {
+      res.writeHead(302, { location: `http://127.0.0.1:${targetPort}/sessions` });
+      res.end();
+      return;
+    }
+    res.writeHead(404, { "content-type": "application/json" });
+    res.end("{}");
   });
   await new Promise((resolve) => target.listen(0, "127.0.0.1", resolve));
   targetPort = target.address().port;
@@ -637,10 +801,165 @@ test("resolveHubUrl falls back to the public hub", () => {
     assert.equal(result.status, 0, result.stderr);
     assert.equal(
       result.stdout.trim(),
-      "https://twexts.sdisk.us/api/v1 https://example.com/v1 https://custom.test",
+      "https://twexts.sdisk.us/api/v2 https://example.com/v1 https://custom.test",
     );
   } finally {
     cleanup();
+  }
+});
+
+test("a stored hub URL on a retired API version moves to the current one", () => {
+  const { dir, cleanup } = tmpHome();
+  try {
+    const cfgDir = join(dir, ".twext");
+    mkdirSync(cfgDir, { recursive: true });
+    const configPath = join(cfgDir, "config.json");
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        hub: "https://twexts.sdisk.us/api/v1/",
+        namespace: "acme",
+        token: "sess-1",
+      }),
+    );
+    const hubModule = fileURLToPath(new URL("../src/hub.js", import.meta.url));
+    const script = `import { resolveHubUrl, resolveToken, resolveNamespace } from ${JSON.stringify(hubModule)};
+      const hub = resolveHubUrl(undefined, {});
+      console.log([hub, resolveToken(undefined, hub, {}), resolveNamespace(undefined, hub, {})].join("|"));`;
+    const result = spawnSync(process.execPath, ["--input-type=module", "-e", script], {
+      env: { ...process.env, HOME: dir },
+      encoding: "utf8",
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout.trim(), "https://twexts.sdisk.us/api/v2|sess-1|acme");
+    assert.deepEqual(JSON.parse(readFileSync(configPath, "utf8")), {
+      hub: "https://twexts.sdisk.us/api/v2",
+      namespace: "acme",
+      token: "sess-1",
+    });
+    assert.equal(statSync(configPath).mode & 0o777, 0o600);
+    assert.deepEqual(readdirSync(cfgDir), ["config.json"]);
+  } finally {
+    cleanup();
+  }
+});
+
+for (const failure of ["open", "write", "partial write", "rename"]) {
+  test(`migrated credentials survive a failed ${failure}`, () => {
+    const { dir, cleanup } = tmpHome();
+    try {
+      mkdirSync(join(dir, ".twext"));
+      const configPath = join(dir, ".twext", "config.json");
+      const stored = { hub: "https://twexts.sdisk.us/api/v1", namespace: "acme", token: "sess-1" };
+      writeFileSync(configPath, JSON.stringify(stored));
+      const hubModule = fileURLToPath(new URL("../src/hub.js", import.meta.url));
+      const script = `import fs from "node:fs";
+        import { syncBuiltinESMExports } from "node:module";
+        import assert from "node:assert/strict";
+        const failure = ${JSON.stringify(failure)};
+        const modes = [];
+        const fail = () => { throw new Error("Simulated filesystem failure"); };
+        if (failure === "open") {
+          const open = fs.openSync;
+          fs.openSync = (file, flags, mode) => {
+            if (flags === "wx") fail();
+            return open(file, flags, mode);
+          };
+        }
+        else if (failure === "rename") fs.renameSync = fail;
+        else {
+          const write = fs.writeFileSync;
+          fs.writeFileSync = (file, data, options) => {
+            if (failure === "partial write") {
+              write(file, data.slice(0, 10), options);
+              const mode = typeof file === "number" ? fs.fstatSync(file).mode : fs.statSync(file).mode;
+              modes.push(mode & 0o777);
+            }
+            fail();
+          };
+        }
+        syncBuiltinESMExports();
+        const { resolveHubUrl, resolveToken, resolveNamespace } = await import(${JSON.stringify(hubModule)});
+        const hub = resolveHubUrl(undefined, {});
+        console.log([hub, resolveToken(undefined, hub, {}), resolveNamespace(undefined, hub, {})].join("|"));
+        if (failure === "partial write") {
+          assert.equal(modes.length, 3);
+          if (process.platform !== "win32") assert.deepEqual(modes, [0o600, 0o600, 0o600]);
+        }`;
+      const result = spawnSync(process.execPath, ["--input-type=module", "-e", script], {
+        env: { ...process.env, HOME: dir, USERPROFILE: dir },
+        encoding: "utf8",
+      });
+      assert.equal(result.status, 0, result.stderr);
+      assert.equal(result.stdout.trim(), "https://twexts.sdisk.us/api/v2|sess-1|acme");
+      assert.ok(result.stderr.includes(configPath));
+      assert.match(result.stderr, /Using migrated credentials for this command/);
+      assert.match(result.stderr, /credentials file still needs updating/);
+      assert.doesNotMatch(result.stderr, /sess-1/);
+      assert.equal(readFileSync(configPath, "utf8"), JSON.stringify(stored));
+      assert.deepEqual(readdirSync(join(dir, ".twext")), ["config.json"]);
+    } finally {
+      cleanup();
+    }
+  });
+}
+
+test("only the retired official URL is rewritten; overrides still win", () => {
+  const { dir, cleanup } = tmpHome();
+  try {
+    const cfgDir = join(dir, ".twext");
+    mkdirSync(cfgDir, { recursive: true });
+    const configPath = join(cfgDir, "config.json");
+    const stored = { hub: "https://custom.test/api/v1", namespace: "acme", token: "sess-1" };
+    writeFileSync(configPath, JSON.stringify(stored));
+    const hubModule = fileURLToPath(new URL("../src/hub.js", import.meta.url));
+    const script = `import { resolveHubUrl } from ${JSON.stringify(hubModule)};
+      console.log([
+        resolveHubUrl(undefined, {}),
+        resolveHubUrl("https://flag.test/v1", {}),
+        resolveHubUrl(undefined, { TWEXTHUB_URL: "https://env.test/v1" }),
+      ].join(" "));`;
+    const result = spawnSync(process.execPath, ["--input-type=module", "-e", script], {
+      env: { ...process.env, HOME: dir },
+      encoding: "utf8",
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(
+      result.stdout.trim(),
+      "https://custom.test/api/v1 https://flag.test/v1 https://env.test/v1",
+    );
+    assert.deepEqual(JSON.parse(readFileSync(configPath, "utf8")), stored);
+  } finally {
+    cleanup();
+  }
+});
+
+test("a hub command rewrites the stored retired URL while keeping the session", async () => {
+  const { dir, cleanup } = tmpHome();
+  const hub = await createHub([
+    {
+      method: "GET",
+      path: "/search",
+      reply: { status: 200, body: { data: [], _links: { self: "x", next: null, prev: null } } },
+    },
+  ]);
+  try {
+    mkdirSync(join(dir, ".twext"));
+    writeFileSync(
+      join(dir, ".twext/config.json"),
+      JSON.stringify({ hub: "https://twexts.sdisk.us/api/v1", namespace: "acme", token: "sess-1" }),
+    );
+    const search = await runCli(["search", "blocks", "--url", hub.url], { env: { HOME: dir } });
+    assert.equal(search.code, 0, search.stderr);
+    assert.match(search.stdout, /No extensions matched "blocks"/);
+    assert.deepEqual(JSON.parse(readFileSync(join(dir, ".twext", "config.json"), "utf8")), {
+      hub: "https://twexts.sdisk.us/api/v2",
+      namespace: "acme",
+      token: "sess-1",
+    });
+  } finally {
+    cleanup();
+    await hub.close();
   }
 });
 

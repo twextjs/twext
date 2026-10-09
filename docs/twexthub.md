@@ -56,6 +56,8 @@ twext signup --namespace kamixfox --display-name "Kane"
 twext login
 ```
 
+Before it asks anything, login reads a few public endpoints from the hub, allowing up to two seconds for each response. If none of them answer it stops with `The instance you are trying to reach is down, or you are offline.` rather than prompting. The instance's name, version, and description are printed above the prompt only when `/meta` returns metadata. Responses from `/terms` or `/stats` alone let login proceed without those details.
+
 `twext logout` revokes the session at the hub and then deletes the credentials. If the session was already revoked, it says nothing and moves on.
 
 ### Where the Credentials Live
@@ -70,7 +72,9 @@ Every hub command can override those three without touching the file, which is w
 | Namespace | `-n`, `--namespace` | `TWEXTHUB_NAMESPACE` |
 | Token     | `--token`           | `TWEXTHUB_TOKEN`     |
 
-The default hub is `https://twexts.sdisk.us/api/v1`. Point `-u` somewhere else and the stored credentials are ignored, because they belong to the hub that issued them. The hub must be served over HTTPS, with the exception of `localhost`, `127.0.0.1`, and `::1` so you can run one while developing.
+The default hub is `https://twexts.sdisk.us/api/v2`. Point `-u` somewhere else and the stored credentials are ignored, because they belong to the hub that issued them. The hub must be served over HTTPS, with the exception of `localhost`, `127.0.0.1`, and `::1` so you can run one while developing.
+
+Credentials stored against an older API version of the official hub (`https://twexts.sdisk.us/api/v1`) are moved to the current one on the next read, token and namespace included. Your session is still valid, so you don't have to log in again.
 
 ## ➕ Publishing
 

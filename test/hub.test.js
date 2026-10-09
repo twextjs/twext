@@ -882,9 +882,12 @@ for (const failure of ["open", "write", "partial write", "rename"]) {
         const { resolveHubUrl, resolveToken, resolveNamespace } = await import(${JSON.stringify(hubModule)});
         const hub = resolveHubUrl(undefined, {});
         console.log([hub, resolveToken(undefined, hub, {}), resolveNamespace(undefined, hub, {})].join("|"));
-        if (failure === "partial write") assert.deepEqual(modes, [0o600, 0o600, 0o600]);`;
+        if (failure === "partial write") {
+          assert.equal(modes.length, 3);
+          if (process.platform !== "win32") assert.deepEqual(modes, [0o600, 0o600, 0o600]);
+        }`;
       const result = spawnSync(process.execPath, ["--input-type=module", "-e", script], {
-        env: { ...process.env, HOME: dir },
+        env: { ...process.env, HOME: dir, USERPROFILE: dir },
         encoding: "utf8",
       });
       assert.equal(result.status, 0, result.stderr);

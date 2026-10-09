@@ -22,6 +22,7 @@ import { Header } from "tar";
 import { checkoutCommand } from "../src/commands/checkout.js";
 import { HubError, getVersion, downloadSource } from "../src/hub.js";
 import { isRange } from "../src/spec.js";
+import { loadProduct } from "../src/config.js";
 
 import { createProjectTarball } from "../src/tarball.js";
 
@@ -64,6 +65,7 @@ function createHub(routes) {
       path,
       query,
       authorization: req.headers.authorization ?? null,
+      userAgent: req.headers["user-agent"] ?? null,
       contentType,
       raw,
       body: contentType?.includes("application/json") && raw.length > 0 ? JSON.parse(raw) : null,
@@ -232,6 +234,54 @@ test("login stores credentials and publish auto-accepts terms with a session tok
       packed.find((entry) => entry.name === "twext.yml").data.toString("utf8"),
       /super-utilities/,
     );
+  } finally {
+    cleanup();
+    await hub.close();
+  }
+});
+
+test("hub requests identify the client with a Twext user-agent", async () => {
+  const { dir, cleanup } = tmpHome();
+  const source = Buffer.from("packed source");
+  const hub = await createHub([
+    { method: "GET", path: "/meta", reply: { status: 200, body: { name: "TwextHub" } } },
+    { method: "GET", path: "/terms", reply: { status: 200, body: { version: 3 } } },
+    { method: "GET", path: "/stats", reply: { status: 200, body: { published: 1 } } },
+    {
+      method: "POST",
+      path: "/sessions",
+      reply: {
+        status: 201,
+        body: { token: "sess-1", user: { namespace: "acme", role: "normal" } },
+      },
+    },
+    {
+      method: "GET",
+      path: "/@acme/superutilities/versions/1.0.0",
+      reply: { status: 200, body: { version: "1.0.0" } },
+    },
+    {
+      method: "GET",
+      path: "/@acme/superutilities/versions/1.0.0/source",
+      reply: { status: 200, contentType: "application/gzip", body: source },
+    },
+  ]);
+  try {
+    const login = await runCli(
+      ["login", "--url", hub.url, "--namespace", "acme", "--password", "pw"],
+      { env: { HOME: dir } },
+    );
+    assert.equal(login.code, 0, login.stderr);
+    await getVersion(hub.url, "acme", "superutilities", "1.0.0", "sess-1");
+    await downloadSource(hub.url, "sess-1", "acme", "superutilities", "1.0.0");
+    const expected = `Twext/${loadProduct().version}`;
+    const paths = hub.requests.map((request) => request.path);
+    assert.ok(paths.includes("/meta"), "probes a public endpoint");
+    assert.ok(paths.includes("/sessions"), "opens a session");
+    assert.ok(paths.includes("/@acme/superutilities/versions/1.0.0/source"), "downloads a source");
+    for (const request of hub.requests) {
+      assert.equal(request.userAgent, expected, `${request.method} ${request.path}`);
+    }
   } finally {
     cleanup();
     await hub.close();

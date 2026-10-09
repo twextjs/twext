@@ -56,6 +56,8 @@ twext signup --namespace kamixfox --display-name "Kane"
 twext login
 ```
 
+Before it asks anything, login reads a few public endpoints from the hub. If none of them answer it stops with `The instance you are trying to reach is down, or you are offline.` rather than prompting. When it answers, the instance's name, version, and description are printed above the prompt, so you can see which hub you are signing into.
+
 `twext logout` revokes the session at the hub and then deletes the credentials. If the session was already revoked, it says nothing and moves on.
 
 ### Where the Credentials Live

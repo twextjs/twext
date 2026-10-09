@@ -188,6 +188,7 @@ test("login stores credentials and publish auto-accepts terms with a session tok
     assert.deepEqual(config, { hub: hub.url, namespace: "acme", token: "sess-1" });
 
     const loginRequestsBeforePublish = hub.requests.filter((r) => r.path === "/sessions").length;
+    const termReadsBeforePublish = hub.requests.filter((r) => r.path === "/terms").length;
 
     const publish = await runCli(
       ["publish", "--config", fixture("basic/twext.yml"), "--url", hub.url],
@@ -200,7 +201,11 @@ test("login stores credentials and publish auto-accepts terms with a session tok
       loginRequestsBeforePublish,
       "no new login on publish",
     );
-    assert.equal(hub.requests.filter((r) => r.path === "/terms").length, 1, "terms read once");
+    assert.equal(
+      hub.requests.filter((r) => r.path === "/terms").length,
+      termReadsBeforePublish + 1,
+      "terms read once",
+    );
     const acceptance = hub.requests.find((r) => r.method === "PATCH");
     assert.equal(acceptance.path, "/users/acme");
     assert.deepEqual(acceptance.body, { termsAcceptedVersion: 3 });
@@ -255,6 +260,119 @@ test("login reports rejected credentials without signing up", async () => {
       "never signs up implicitly",
     );
     assert.ok(!existsSync(join(dir, ".twext", "config.json")));
+  } finally {
+    cleanup();
+    await hub.close();
+  }
+});
+
+test("login refuses to prompt when the hub does not answer", async () => {
+  const { dir, cleanup } = tmpHome();
+  const unavailable = { status: 503, body: { title: "Service Unavailable" } };
+  const hub = await createHub(
+    ["/meta", "/terms", "/stats"].map((path) => ({ method: "GET", path, reply: unavailable })),
+  );
+  try {
+    const down = await runCli(["login", "--url", hub.url], { env: { HOME: dir } });
+    assert.equal(down.code, 1);
+    assert.match(down.stderr, /The instance you are trying to reach is down, or you are offline\./);
+    assert.doesNotMatch(down.stderr, /Namespace/, "never reaches the prompt");
+    assert.equal(hub.requests.length, 3, "only the probes are sent");
+    assert.equal(hub.requests.filter((r) => r.path === "/sessions").length, 0);
+    assert.ok(!existsSync(join(dir, ".twext", "config.json")));
+
+    const offline = await runCli(["login", "--url", "http://127.0.0.1:1"], { env: { HOME: dir } });
+    assert.equal(offline.code, 1);
+    assert.match(
+      offline.stderr,
+      /The instance you are trying to reach is down, or you are offline\./,
+    );
+  } finally {
+    cleanup();
+    await hub.close();
+  }
+});
+
+test("login shows the instance details before it prompts", async () => {
+  const { dir, cleanup } = tmpHome();
+  const hub = await createHub([
+    {
+      method: "GET",
+      path: "/meta",
+      reply: {
+        status: 200,
+        body: {
+          name: "TwextHub",
+          version: "2.0.2",
+          tagline: "A lightweight registry of Twexts",
+          homepage: "https://twexts.sdisk.us",
+        },
+      },
+    },
+    { method: "GET", path: "/terms", reply: { status: 200, body: { version: 3 } } },
+    { method: "GET", path: "/stats", reply: { status: 200, body: { published: 12 } } },
+    {
+      method: "POST",
+      path: "/sessions",
+      reply: {
+        status: 201,
+        body: {
+          session: { id: "s-1" },
+          token: "sess-1",
+          user: { namespace: "acme", role: "normal" },
+        },
+      },
+    },
+  ]);
+  try {
+    const login = await runCli(
+      ["login", "--url", hub.url, "--namespace", "acme", "--password", "pw"],
+      { env: { HOME: dir } },
+    );
+    assert.equal(login.code, 0, login.stderr);
+    for (const path of ["/meta", "/terms", "/stats"]) {
+      assert.equal(hub.requests.filter((r) => r.path === path).length, 1, `${path} probed once`);
+    }
+    const details = login.stdout.match(
+      / {2}• TwextHub\n {2}• 2\.0\.2\n {2}• A lightweight registry of Twexts/,
+    );
+    assert.ok(details, login.stdout);
+    assert.ok(details.index < login.stdout.indexOf("Logged in as acme"));
+  } finally {
+    cleanup();
+    await hub.close();
+  }
+});
+
+test("login goes ahead when only some of the probes answer", async () => {
+  const { dir, cleanup } = tmpHome();
+  const hub = await createHub([
+    { method: "GET", path: "/terms", reply: { status: 200, body: { version: 3 } } },
+    {
+      method: "POST",
+      path: "/sessions",
+      reply: {
+        status: 201,
+        body: {
+          session: { id: "s-1" },
+          token: "sess-1",
+          user: { namespace: "acme", role: "normal" },
+        },
+      },
+    },
+  ]);
+  try {
+    const login = await runCli(
+      ["login", "--url", hub.url, "--namespace", "acme", "--password", "pw"],
+      { env: { HOME: dir } },
+    );
+    assert.equal(login.code, 0, login.stderr);
+    assert.match(login.stdout, /Logged in as acme/);
+    assert.doesNotMatch(login.stdout, /undefined/, "no details are printed without /meta");
+    assert.equal(
+      JSON.parse(readFileSync(join(dir, ".twext", "config.json"), "utf8")).token,
+      "sess-1",
+    );
   } finally {
     cleanup();
     await hub.close();
@@ -382,8 +500,13 @@ test("hub requests reject redirects so password bodies are never replayed", asyn
   });
   let targetPort;
   const source = createServer((req, res) => {
-    res.writeHead(302, { location: `http://127.0.0.1:${targetPort}/sessions` });
-    res.end();
+    if (req.url === "/sessions") {
+      res.writeHead(302, { location: `http://127.0.0.1:${targetPort}/sessions` });
+      res.end();
+      return;
+    }
+    res.writeHead(404, { "content-type": "application/json" });
+    res.end("{}");
   });
   await new Promise((resolve) => target.listen(0, "127.0.0.1", resolve));
   targetPort = target.address().port;

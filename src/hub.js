@@ -146,6 +146,27 @@ async function hubRequest(
   return data;
 }
 
+// Public reads, made before an interactive login so a hub that is down or a
+// machine that is offline fails before anything is typed. Any answer under 500
+// counts as reachable: an older hub may miss a route, and a 404 is not a hub
+// that is down. /meta carries what the terminal shows above the prompt.
+export async function probeHub(base) {
+  const probes = await Promise.allSettled([
+    hubRequest(base, "/meta"),
+    hubRequest(base, "/terms"),
+    hubRequest(base, "/stats"),
+  ]);
+  const [meta] = probes;
+  return {
+    up: probes.some(
+      (probe) =>
+        probe.status === "fulfilled" ||
+        (probe.reason instanceof HubError && probe.reason.status < 500),
+    ),
+    meta: meta.status === "fulfilled" ? meta.value : null,
+  };
+}
+
 export async function login(base, namespace, password) {
   return hubRequest(base, "/sessions", { method: "POST", body: { namespace, password } });
 }

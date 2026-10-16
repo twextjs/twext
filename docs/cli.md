@@ -92,6 +92,8 @@ These commands talk to a TwextHub. [Using TwextHub](./twexthub.md) walks through
 | `twext checkout <id>[@version] [directory]` | Download a published version's sources into a directory.              |
 | `twext notifications`                       | List account notifications.                                           |
 | `twext token create`                        | Create an automation token for CI.                                    |
+| `twext token list`                          | List the account's automation tokens.                                 |
+| `twext token revoke <id>`                   | Revoke an automation token.                                           |
 | `twext org create <namespace>`              | Create an organization; you become its first owner.                   |
 | `twext org list`                            | List the organizations on the hub.                                    |
 | `twext org info <namespace>`                | Show an organization's profile.                                       |
@@ -125,7 +127,7 @@ These commands talk to a TwextHub. [Using TwextHub](./twexthub.md) walks through
 
 `login` and `signup` prompt for anything you leave out, and `login` reads the stored namespace when you don't pass `-n`.
 
-`publish`, `yank`, `deprecate`, and the `tag` subcommands all need a token. `checkout` needs one too, even for a public extension. `search` and `info` don't, though they send the stored token when there is one so the hub can show you your own extension. Of the `org` subcommands, `create`, `update`, `delete`, `add` and `remove` need a token; `list`, `info` and `owners` don't, and `extensions` sends the token for the same reason as `search` and `info`.
+`publish`, `yank`, `deprecate`, the `tag` subcommands, and `token` all need a token. `checkout` needs one too, even for a public extension. `search` and `info` don't, though they send the stored token when there is one so the hub can show you your own extension. Of the `org` subcommands, `create`, `update`, `delete`, `add` and `remove` need a token; `list`, `info` and `owners` don't, and `extensions` sends the token for the same reason as `search` and `info`.
 
 ### Extension Specs
 

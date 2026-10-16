@@ -1350,6 +1350,90 @@ test("token create sends scopes and prints the token once", async () => {
   }
 });
 
+test("token list prints each token with its scopes and expiry", async () => {
+  const { dir, cleanup } = tmpHome();
+  const hub = await createHub([
+    {
+      method: "GET",
+      path: "/tokens",
+      reply: {
+        status: 200,
+        body: {
+          data: [
+            {
+              id: "7",
+              name: "CI",
+              scopes: ["publish"],
+              createdAt: "2026-01-01T00:00:00Z",
+              expiresAt: "2026-04-01T00:00:00Z",
+              lastUsedAt: "2026-02-01T00:00:00Z",
+            },
+            {
+              id: "8",
+              name: "yank-bot",
+              scopes: ["yank"],
+              createdAt: "2026-02-01T00:00:00Z",
+              expiresAt: null,
+              lastUsedAt: null,
+            },
+          ],
+          _links: { next: null },
+        },
+      },
+    },
+  ]);
+  try {
+    const result = await runCli(["token", "list", "--url", hub.url], {
+      env: { HOME: dir, TWEXTHUB_TOKEN: "sess-1" },
+    });
+    assert.equal(result.code, 0, result.stderr);
+    assert.match(result.stdout, /2 tokens/);
+    assert.match(
+      result.stdout,
+      /CI \(id 7\) publish — created 2026-01-01, expires 2026-04-01, last used 2026-02-01/,
+    );
+    assert.match(result.stdout, /yank-bot \(id 8\) yank — created 2026-02-01, no expiry/);
+    const request = hub.requests.find((r) => r.path === "/tokens");
+    assert.equal(request.authorization, "Bearer sess-1");
+  } finally {
+    cleanup();
+    await hub.close();
+  }
+});
+
+test("token revoke deletes the named token", async () => {
+  const { dir, cleanup } = tmpHome();
+  const hub = await createHub([
+    { method: "DELETE", path: "/tokens/7", reply: { status: 204 } },
+  ]);
+  try {
+    const result = await runCli(["token", "revoke", "7", "--url", hub.url], {
+      env: { HOME: dir, TWEXTHUB_TOKEN: "sess-1" },
+    });
+    assert.equal(result.code, 0, result.stderr);
+    assert.match(result.stdout, /Revoked token 7/);
+    const request = hub.requests.find((r) => r.method === "DELETE");
+    assert.equal(request.path, "/tokens/7");
+    assert.equal(request.authorization, "Bearer sess-1");
+  } finally {
+    cleanup();
+    await hub.close();
+  }
+});
+
+test("token revoke refuses an id that is not a token id", async () => {
+  const { dir, cleanup } = tmpHome();
+  try {
+    const result = await runCli(["token", "revoke", "current", "--url", "https://hub.test"], {
+      env: { HOME: dir, TWEXTHUB_TOKEN: "sess-1" },
+    });
+    assert.equal(result.code, 1);
+    assert.match(result.stderr, /twext token revoke/);
+  } finally {
+    cleanup();
+  }
+});
+
 test("publish packs sources and leaves out build output, dependencies and dotfiles", async () => {
   const { dir, cleanup } = tmpHome();
   const project = mkdtempSync(join(tmpdir(), "twext-project-"));

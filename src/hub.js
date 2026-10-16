@@ -237,6 +237,14 @@ export async function createAutomationToken(base, token, body) {
   return hubRequest(base, "/tokens", { method: "POST", token, body });
 }
 
+export async function listAutomationTokens(base, token) {
+  return allPages(base, "/tokens?limit=50", token);
+}
+
+export async function revokeAutomationToken(base, token, id) {
+  return hubRequest(base, `/tokens/${encodeURIComponent(id)}`, { method: "DELETE", token });
+}
+
 export async function revokeCurrentSession(base, token) {
   return hubRequest(base, "/sessions/current", { method: "DELETE", token });
 }

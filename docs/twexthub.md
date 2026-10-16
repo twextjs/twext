@@ -209,7 +209,12 @@ Add `--scope yank` if the workflow also yanks, and `--expires-in-days 90` to giv
 TWEXTHUB_TOKEN=twext_... twext publish
 ```
 
-Keep it in your CI provider's secret store rather than in the repository. The `publish` and `yank` scopes are the only ones that exist, and a token can be revoked from the web UI if it leaks.
+Keep it in your CI provider's secret store rather than in the repository. The `publish` and `yank` scopes are the only ones that exist. `twext token list` shows the tokens on the account with their scopes and expiry, and `twext token revoke <id>` kills one without opening the web UI:
+
+```bash
+twext token list
+twext token revoke 7
+```
 
 > **Important:** A token can't accept the hub's Terms of Service. The first `publish` in a workflow fails until you've published once with `twext login` and agreed to the terms there.
 

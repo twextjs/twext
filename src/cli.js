@@ -66,7 +66,7 @@ Commands:
   info          Registry info for an extension (twext info myext@^1.2)
   search        Search published extensions (twext search turbo)
   notifications List hub notifications (--read marks them read)
-  token         Create an automation token for CI (e.g. twext token create)
+  token         Manage automation tokens (create, list, revoke)
   org           Manage organizations (e.g. twext org create acme)
   help          Show this help
 
@@ -165,7 +165,7 @@ async function main(args) {
     case "notifications":
       return (await notificationsCommand(product, values, log)) ? 0 : 1;
     case "token":
-      return (await tokenCommand(product, positionals[1], values, log)) ? 0 : 1;
+      return (await tokenCommand(product, positionals[1], positionals.slice(2), values, log)) ? 0 : 1;
     case "org":
       return (await orgCommand(product, positionals[1], positionals.slice(2), values, log)) ? 0 : 1;
     default:

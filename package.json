@@ -11,7 +11,12 @@
   "bin": {
     "twext": "src/cli.js"
   },
-  "files": ["src", "schema", "types", "product.yml"],
+  "files": [
+    "src",
+    "schema",
+    "types",
+    "product.yml"
+  ],
   "exports": {
     "./types/*": "./types/*"
   },

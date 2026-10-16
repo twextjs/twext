@@ -126,4 +126,4 @@ Validation reads the manifest and the source, and (through the risky-pattern sca
 - Whether a handler does the right thing with the arguments or calls TurboWarp's API correctly.
 - Whether the compiled file runs. Load the built extension in TurboWarp for that.
 
-One more shape of error comes from the compiler rather than the validator: a handler that Twext can't re-print from its source — a generator, for instance — passes `twext validate` and fails the build with `Could not parse handler function for block "<opcode>"`, or `... for method "<name>"` for an entry in `methods`. See [Handlers](./writing-blocks.md#-handlers).
+One more shape of error comes from the compiler rather than the validator: a handler that Twext can't re-print from its source — a generator, for instance — fails both `twext validate` and the build with `Could not parse handler function for block "<opcode>"`, or `... for method "<name>"` for an entry in `methods`. See [Handlers](./writing-blocks.md#-handlers).

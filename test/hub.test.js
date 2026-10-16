@@ -2022,6 +2022,67 @@ test("info shows an owner their pending and rejected versions", async () => {
   }
 });
 
+test("info reads every page of an owner's pending versions", async () => {
+  const { dir, cleanup } = tmpHome();
+  const detail = {
+    namespace: "acme",
+    id: "superutilities",
+    name: "Super Utilities",
+    version: "1.0.0",
+    versions: [{ version: "1.0.0", status: "published", publishedAt: "2026-09-27T00:00:00Z" }],
+  };
+  const hub = await createHub([
+    { method: "GET", path: "/@acme/superutilities", reply: { status: 200, body: detail } },
+    {
+      method: "GET",
+      path: "/@acme/superutilities/versions",
+      reply: (request) => {
+        const query = new URLSearchParams(request.query);
+        const status = query.get("status");
+        if (status === "pending" && query.has("offset")) {
+          return {
+            status: 200,
+            body: {
+              data: [{ version: "2.9.0", status: "pending", createdAt: "2026-09-29T00:00:00Z" }],
+              _links: {},
+            },
+          };
+        }
+        if (status === "pending") {
+          return {
+            status: 200,
+            body: {
+              data: [{ version: "3.0.0", status: "pending", createdAt: "2026-10-01T00:00:00Z" }],
+              _links: { next: "?status=pending&limit=50&offset=1" },
+            },
+          };
+        }
+        if (status === "rejected") return { status: 200, body: { data: [], _links: {} } };
+        return { status: 200, body: { data: detail.versions, _links: {} } };
+      },
+    },
+  ]);
+  try {
+    const result = await runCli(
+      ["info", "superutilities", "--namespace", "acme", "--url", hub.url],
+      {
+        env: { HOME: dir, TWEXTHUB_NAMESPACE: "acme", TWEXTHUB_TOKEN: "sess-1" },
+      },
+    );
+    assert.equal(result.code, 0, result.stderr);
+    assert.match(result.stdout, /3\.0\.0 pending \(2026-10-01\)/);
+    assert.match(result.stdout, /2\.9\.0 pending \(2026-09-29\)/);
+    assert.equal(
+      hub.requests.filter((r) => new URLSearchParams(r.query).get("status") === "pending").length,
+      2,
+      "both pages of the pending list are read",
+    );
+  } finally {
+    cleanup();
+    await hub.close();
+  }
+});
+
 test("search queries the registry and validates --sort", async () => {
   const { dir, cleanup } = tmpHome();
   const hub = await createHub([
@@ -2192,7 +2253,7 @@ test("info and search collect every page and retain credentials and query parame
       assert.match(info.stdout, /3 versions of @acme\/superutilities/);
       assert.match(info.stdout, /1\.2\.1 published/);
       const reads = hub.requests.slice(before);
-      assert.equal(reads.length, 5, "three pages plus the two owner-only status reads");
+      assert.equal(reads.length, 9, "three pages each of the base, pending and rejected lists");
       assert.ok(reads.every((r) => new URLSearchParams(r.query).get("range") === range));
     }
     const search = await runCli(
@@ -2202,7 +2263,7 @@ test("info and search collect every page and retain credentials and query parame
     assert.equal(search.code, 0, search.stderr);
     assert.match(search.stdout, /3 extensions matching "blocks"/);
     assert.match(search.stdout, /Result 3/);
-    assert.equal(hub.requests.length, 13);
+    assert.equal(hub.requests.length, 21);
     assert.ok(hub.requests.every((r) => r.authorization === "Bearer selected-token"));
     assert.ok(
       hub.requests.slice(-3).every((r) => new URLSearchParams(r.query).get("sort") === "downloads"),

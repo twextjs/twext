@@ -10,7 +10,13 @@ export async function validateCommand(product, configPath, log) {
     return false;
   }
   const { config, root, module: mod } = result.project;
-  const compiled = compileExtension({ config, root, module: mod }, product);
+  let compiled;
+  try {
+    compiled = compileExtension({ config, root, module: mod }, product);
+  } catch (err) {
+    log.error(err.message);
+    return false;
+  }
   for (const message of riskyPatternWarnings(compiled)) log.warn(message);
   const count = config.blocks.length;
   log.success(`${count} block${count === 1 ? "" : "s"} validated`);

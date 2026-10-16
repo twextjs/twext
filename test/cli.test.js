@@ -108,6 +108,23 @@ test("validate and build warn about risky patterns without failing", () => {
   }
 });
 
+test("a handler the compiler can't re-print fails validate and build", () => {
+  const validate = runCli(["validate"], fixture("generator"));
+  assert.equal(validate.status, 1);
+  assert.match(validate.stderr, /Could not parse handler function for block "spin"/);
+
+  const { dir, cleanup } = tmpProject();
+  try {
+    const out = join(dir, "generator.js");
+    const build = runCli(["build", "-o", out], fixture("generator"));
+    assert.equal(build.status, 1);
+    assert.match(build.stderr, /Could not parse handler function for block "spin"/);
+    assert.ok(!existsSync(out), "a compile failure writes no output");
+  } finally {
+    cleanup();
+  }
+});
+
 test("build writes to an explicit -o path", () => {
   const { dir, cleanup } = tmpProject();
   try {

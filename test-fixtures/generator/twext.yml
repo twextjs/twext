@@ -1,0 +1,14 @@
+name: "generator"
+version: "1.0.0"
+entryPoint: "src/index.js"
+outputPath: "dist/extension.js"
+
+extension:
+  id: "generator"
+  name: "Generator"
+  className: "GeneratorExtension"
+
+blocks:
+  - opcode: spin
+    blockType: reporter
+    text: "spin"

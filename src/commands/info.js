@@ -20,7 +20,7 @@ async function ownerOnlyVersions(hub, namespace, id, token, range) {
   const extra = [];
   for (const status of ["pending", "rejected"]) {
     try {
-      const page = await listVersions(hub, namespace, id, range, token, { status });
+      const page = await listVersions(hub, namespace, id, range, token, { status, all: true });
       extra.push(...(page?.data ?? []));
     } catch (err) {
       if (err instanceof HubError && (err.status === 401 || err.status === 403)) continue;

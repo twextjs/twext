@@ -48,7 +48,7 @@ Validates the project, compiles it, and writes the result.
 | `-c`, `--config <file>` | Manifest to read. Defaults to `twext.yml`.                      |
 | `-o`, `--out <file>`    | Where to write the compiled extension, overriding `outputPath`. |
 
-Validation errors stop the build before anything is written. Warnings are printed and the build continues.
+Validation errors stop the build before anything is written. Warnings are printed and the build continues. The compiled output is scanned for `fetch(`, `eval(`, `new Function`, `XMLHttpRequest`, and raw `http://` URLs — the patterns the hub flags on review — and each hit prints as a warning.
 
 ### `twext validate`
 

@@ -1,6 +1,7 @@
 import { dirname } from "node:path";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { compileExtension } from "../compile.js";
+import { riskyPatternWarnings } from "../risky-patterns.js";
 import { validateProject } from "../validate.js";
 import { resolveOutputPath } from "../project.js";
 
@@ -13,9 +14,16 @@ export async function buildProduct(product, configPath, outOverride, onValidated
   const { config, root, module: mod } = result.project;
   onValidated?.(config);
   const output = resolveOutputPath(product, config, root, outOverride);
+  const compiled = compileExtension({ config, root, module: mod }, product);
   mkdirSync(dirname(output), { recursive: true });
-  writeFileSync(output, compileExtension({ config, root, module: mod }, product), "utf8");
-  return { ok: true, errors: [], warnings: result.warnings, output, config };
+  writeFileSync(output, compiled, "utf8");
+  return {
+    ok: true,
+    errors: [],
+    warnings: [...result.warnings, ...riskyPatternWarnings(compiled)],
+    output,
+    config,
+  };
 }
 
 export async function buildCommand(product, configPath, outOverride, log) {

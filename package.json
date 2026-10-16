@@ -1,6 +1,6 @@
 {
   "name": "@twextjs/twext",
-  "version": "2.1.2",
+  "version": "2.2.0",
   "description": "Build custom TurboWarp extensions with JavaScript modules (ESM).",
   "author": "Twext Team",
   "license": "Apache-2.0",
@@ -11,12 +11,7 @@
   "bin": {
     "twext": "src/cli.js"
   },
-  "files": [
-    "src",
-    "schema",
-    "types",
-    "product.yml"
-  ],
+  "files": ["src", "schema", "types", "product.yml"],
   "exports": {
     "./types/*": "./types/*"
   },

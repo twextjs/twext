@@ -1807,6 +1807,7 @@ test("info prints extension detail, a single version and range matches", async (
         version: "1.0.0",
         status: "published",
         publishedAt: "2026-09-27T00:00:00Z",
+        downloads: 12,
         dist: { downloadUrl: "https://hub.test/x.js", digest: "sha256:abc" },
       },
       {
@@ -1814,6 +1815,7 @@ test("info prints extension detail, a single version and range matches", async (
         status: "deprecated",
         deprecation: "use 1.0.0",
         createdAt: "2026-09-01T00:00:00Z",
+        downloads: 3,
       },
     ],
   };
@@ -1831,6 +1833,7 @@ test("info prints extension detail, a single version and range matches", async (
           version: "1.0.0",
           status: "published",
           createdAt: "2026-09-27T00:00:00Z",
+          downloads: 12,
           dist: { downloadUrl: "https://hub.test/x.js", digest: "sha256:abc" },
         },
       },
@@ -1842,7 +1845,12 @@ test("info prints extension detail, a single version and range matches", async (
         status: 200,
         body: {
           data: [
-            { version: "1.2.0", status: "published", publishedAt: "2026-10-01T00:00:00Z" },
+            {
+              version: "1.2.0",
+              status: "published",
+              publishedAt: "2026-10-01T00:00:00Z",
+              downloads: 40,
+            },
             { version: "1.1.0", status: "published", publishedAt: "2026-09-28T00:00:00Z" },
           ],
           _links: {},
@@ -1864,8 +1872,8 @@ test("info prints extension detail, a single version and range matches", async (
     );
     assert.match(full.stdout, /Super Utilities @acme\/superutilities/);
     assert.match(full.stdout, /versions:/);
-    assert.match(full.stdout, /1\.0\.0 published \(2026-09-27\)/);
-    assert.match(full.stdout, /0\.9\.0 deprecated — use 1\.0\.0/);
+    assert.match(full.stdout, /1\.0\.0 published \(2026-09-27, 12 downloads\)/);
+    assert.match(full.stdout, /0\.9\.0 deprecated — use 1\.0\.0 \(2026-09-01, 3 downloads\)/);
     assert.match(full.stdout, /download https:\/\/hub\.test\/x\.js/);
 
     const one = await runCli(
@@ -1874,6 +1882,7 @@ test("info prints extension detail, a single version and range matches", async (
     );
     assert.equal(one.code, 0, one.stderr);
     assert.match(one.stdout, /status published/);
+    assert.match(one.stdout, /12 downloads/);
     assert.match(one.stdout, /digest sha256:abc/);
 
     const ranged = await runCli(
@@ -1882,6 +1891,8 @@ test("info prints extension detail, a single version and range matches", async (
     );
     assert.equal(ranged.code, 0, ranged.stderr);
     assert.match(ranged.stdout, /2 versions of @acme\/superutilities match \^1\.2/);
+    assert.match(ranged.stdout, /1\.2\.0 published \(2026-10-01, 40 downloads\)/);
+    assert.match(ranged.stdout, /1\.1\.0 published \(2026-09-28\)/);
     const list = hub.requests.find((r) => r.path === "/@acme/superutilities/versions");
     assert.equal(list.query, "limit=50&range=%5E1.2");
 

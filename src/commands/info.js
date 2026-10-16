@@ -1,4 +1,4 @@
-import { day, printJson } from "../format.js";
+import { day, downloads, printJson } from "../format.js";
 import {
   getExtension,
   getVersion,
@@ -21,7 +21,7 @@ async function printExtension(log, hub, token, namespace, id, json) {
   for (const version of versions) {
     const note = version.deprecation ? ` — ${version.deprecation}` : "";
     log.bullet(
-      `${version.version} ${version.status}${note} (${day(version.publishedAt ?? version.createdAt)})`,
+      `${version.version} ${version.status}${note} (${day(version.publishedAt ?? version.createdAt)}${downloads(version)})`,
     );
   }
   if (versions[0]?.dist?.downloadUrl) log.bullet(`download ${versions[0].dist.downloadUrl}`);
@@ -36,6 +36,9 @@ async function printVersion(log, hub, token, namespace, id, requested, json) {
   log.bullet(
     `created ${day(version.createdAt)}${version.publishedAt ? `, published ${day(version.publishedAt)}` : ""}`,
   );
+  if (typeof version.downloads === "number") {
+    log.bullet(`${version.downloads} download${version.downloads === 1 ? "" : "s"}`);
+  }
   if (version.dist?.downloadUrl) log.bullet(`download ${version.dist.downloadUrl}`);
   if (version.dist?.digest) log.bullet(`digest ${version.dist.digest}`);
 }
@@ -53,7 +56,7 @@ async function printRange(log, hub, token, namespace, id, range, json) {
   );
   for (const version of matches) {
     log.bullet(
-      `${version.version} ${version.status} (${day(version.publishedAt ?? version.createdAt)})`,
+      `${version.version} ${version.status} (${day(version.publishedAt ?? version.createdAt)}${downloads(version)})`,
     );
   }
 }

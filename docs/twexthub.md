@@ -132,7 +132,7 @@ twext search utility
 
 `--sort` picks the order: `recent`, `downloads`, `updated`, or `name`. With no search terms at all, it lists the whole registry.
 
-`twext info` shows what the registry knows about one extension, its versions, and where to download it. Add a version to narrow it down, and use a range to see every version that matches:
+`twext info` shows what the registry knows about one extension — its versions with their download counts, and where to download it. Add a version to narrow it down, and use a range to see every version that matches:
 
 ```bash
 twext info @kamixfox/superutilities

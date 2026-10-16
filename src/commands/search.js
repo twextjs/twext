@@ -1,8 +1,9 @@
+import { printJson } from "../format.js";
 import { resolveHubUrl, resolveToken, searchExtensions } from "../hub.js";
 
 const SORTS = ["recent", "downloads", "updated", "name"];
 
-export async function searchCommand(product, terms, { url, token, sort }, log) {
+export async function searchCommand(product, terms, { url, token, sort, json }, log) {
   if (sort !== undefined && !SORTS.includes(sort)) {
     log.error(`--sort must be one of ${SORTS.join(", ")}.`);
     return false;
@@ -19,6 +20,10 @@ export async function searchCommand(product, terms, { url, token, sort }, log) {
   }
 
   const results = page?.data ?? [];
+  if (json) {
+    printJson(log, results);
+    return true;
+  }
   if (results.length === 0) {
     log.info(query ? `No extensions matched "${query}".` : "The registry has no extensions yet.");
     return true;

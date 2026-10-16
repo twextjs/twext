@@ -36,6 +36,7 @@ const OPTIONS = {
   scope: { type: "string", multiple: true },
   "expires-in-days": { type: "string" },
   read: { type: "boolean" },
+  json: { type: "boolean" },
   sort: { type: "string" },
   clear: { type: "boolean" },
   bio: { type: "string" },
@@ -84,6 +85,7 @@ Options:
   --scope <scope>          Token scope, repeatable (token create only; default: publish)
   --expires-in-days <days> Token lifetime (token create only)
   --read                   Mark the listed notifications as read (notifications only)
+  --json                   Print the result as JSON (info, search, notifications, org list, tag list, token list)
   --sort <key>             Order: recent, downloads, updated, name (search, org extensions)
   --clear                  Drop a deprecation message (deprecate only)
   --bio <text>             Organization bio, "" clears it (org create/update)
@@ -165,7 +167,9 @@ async function main(args) {
     case "notifications":
       return (await notificationsCommand(product, values, log)) ? 0 : 1;
     case "token":
-      return (await tokenCommand(product, positionals[1], positionals.slice(2), values, log)) ? 0 : 1;
+      return (await tokenCommand(product, positionals[1], positionals.slice(2), values, log))
+        ? 0
+        : 1;
     case "org":
       return (await orgCommand(product, positionals[1], positionals.slice(2), values, log)) ? 0 : 1;
     default:

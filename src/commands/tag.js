@@ -1,3 +1,4 @@
+import { printJson } from "../format.js";
 import {
   deleteDistTag,
   listDistTags,
@@ -16,7 +17,7 @@ export async function tagCommand(
   subcommand,
   args,
   configPath,
-  { url, token, namespace: namespaceOverride },
+  { url, token, namespace: namespaceOverride, json },
   log,
 ) {
   if (subcommand !== "set" && subcommand !== "rm" && subcommand !== "list") {
@@ -48,6 +49,10 @@ export async function tagCommand(
       return false;
     }
     const names = Object.keys(tags ?? {});
+    if (json) {
+      printJson(log, tags ?? {});
+      return true;
+    }
     if (names.length === 0) {
       log.info(`@${namespace}/${id} has no tags.`);
       return true;

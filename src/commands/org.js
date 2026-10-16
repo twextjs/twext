@@ -1,4 +1,4 @@
-import { day } from "../format.js";
+import { day, printJson } from "../format.js";
 import {
   HubError,
   NAMESPACE_PATTERN,
@@ -198,6 +198,10 @@ export async function orgCommand(product, subcommand, args, values, log) {
         return false;
       }
       const orgs = page?.data ?? [];
+      if (values.json) {
+        printJson(log, orgs);
+        return true;
+      }
       if (orgs.length === 0) {
         log.info("No organizations yet.");
         return true;

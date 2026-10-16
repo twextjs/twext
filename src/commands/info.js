@@ -1,4 +1,4 @@
-import { day } from "../format.js";
+import { day, printJson } from "../format.js";
 import {
   getExtension,
   getVersion,
@@ -9,8 +9,9 @@ import {
 } from "../hub.js";
 import { isRange, resolveSpec } from "../spec.js";
 
-async function printExtension(log, hub, token, namespace, id) {
+async function printExtension(log, hub, token, namespace, id, json) {
   const detail = await getExtension(hub, namespace, id, token);
+  if (json) return printJson(log, detail);
   log.info(`${detail.name} @${namespace}/${id}`);
   if (detail.description) log.bullet(detail.description);
   log.bullet(`${detail.license ?? "unknown license"}${detail.author ? `, ${detail.author}` : ""}`);
@@ -27,8 +28,9 @@ async function printExtension(log, hub, token, namespace, id) {
   log.bullet(`badge ${hub}/badge/@${namespace}/${id}`);
 }
 
-async function printVersion(log, hub, token, namespace, id, requested) {
+async function printVersion(log, hub, token, namespace, id, requested, json) {
   const version = await getVersion(hub, namespace, id, requested, token);
+  if (json) return printJson(log, version);
   log.info(`${version.name ?? id} @${namespace}/${id}@${version.version}`);
   log.bullet(`status ${version.status}${version.deprecation ? ` — ${version.deprecation}` : ""}`);
   log.bullet(
@@ -38,9 +40,10 @@ async function printVersion(log, hub, token, namespace, id, requested) {
   if (version.dist?.digest) log.bullet(`digest ${version.dist.digest}`);
 }
 
-async function printRange(log, hub, token, namespace, id, range) {
+async function printRange(log, hub, token, namespace, id, range, json) {
   const page = await listVersions(hub, namespace, id, range, token, { all: true });
   const matches = page?.data ?? [];
+  if (json) return printJson(log, matches);
   if (matches.length === 0) {
     log.info(`No version of @${namespace}/${id} matches ${range}.`);
     return;
@@ -55,7 +58,7 @@ async function printRange(log, hub, token, namespace, id, range) {
   }
 }
 
-export async function infoCommand(product, spec, { url, token, namespace }, log) {
+export async function infoCommand(product, spec, { url, token, namespace, json }, log) {
   if (!spec) {
     log.error("Usage: twext info <id>[@version]");
     return false;
@@ -70,10 +73,11 @@ export async function infoCommand(product, spec, { url, token, namespace }, log)
   }
   const authToken = resolveToken(token, hub);
   try {
-    if (!target.version) await printExtension(log, hub, authToken, target.namespace, target.id);
+    if (!target.version)
+      await printExtension(log, hub, authToken, target.namespace, target.id, json);
     else if (isRange(target.version))
-      await printRange(log, hub, authToken, target.namespace, target.id, target.version);
-    else await printVersion(log, hub, authToken, target.namespace, target.id, target.version);
+      await printRange(log, hub, authToken, target.namespace, target.id, target.version, json);
+    else await printVersion(log, hub, authToken, target.namespace, target.id, target.version, json);
   } catch (err) {
     log.error(err.message);
     return false;

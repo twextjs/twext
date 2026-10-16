@@ -1403,9 +1403,7 @@ test("token list prints each token with its scopes and expiry", async () => {
 
 test("token revoke deletes the named token", async () => {
   const { dir, cleanup } = tmpHome();
-  const hub = await createHub([
-    { method: "DELETE", path: "/tokens/7", reply: { status: 204 } },
-  ]);
+  const hub = await createHub([{ method: "DELETE", path: "/tokens/7", reply: { status: 204 } }]);
   try {
     const result = await runCli(["token", "revoke", "7", "--url", hub.url], {
       env: { HOME: dir, TWEXTHUB_TOKEN: "sess-1" },
@@ -2530,6 +2528,154 @@ test("org add and remove work on the owner list, and the hub's refusals reach th
     const unknown = await runCli(["org", "frobnicate", "--url", hub.url], { env });
     assert.equal(unknown.code, 1);
     assert.match(unknown.stderr, /Unknown org subcommand "frobnicate"/);
+  } finally {
+    cleanup();
+    await hub.close();
+  }
+});
+
+test("--json prints the hub payload for the read commands", async () => {
+  const { dir, cleanup } = tmpHome();
+  const detail = {
+    namespace: "acme",
+    id: "superutilities",
+    name: "Super Utilities",
+    version: "1.0.0",
+    versions: [{ version: "1.0.0", status: "published", downloads: 12 }],
+  };
+  const hub = await createHub([
+    { method: "GET", path: "/@acme/superutilities", reply: { status: 200, body: detail } },
+    {
+      method: "GET",
+      path: "/@acme/superutilities/versions",
+      reply: {
+        status: 200,
+        body: { data: [{ version: "1.0.0", status: "published" }], _links: { next: null } },
+      },
+    },
+    {
+      method: "GET",
+      path: "/@acme/superutilities/tags",
+      reply: { status: 200, body: { latest: "1.0.0" } },
+    },
+    {
+      method: "GET",
+      path: "/search",
+      reply: {
+        status: 200,
+        body: {
+          data: [{ namespace: "acme", id: "superutilities", name: "Super Utilities" }],
+          _links: { next: null },
+        },
+      },
+    },
+    {
+      method: "GET",
+      path: "/notifications",
+      reply: {
+        status: 200,
+        body: {
+          data: [
+            {
+              id: "5",
+              kind: "review.approved",
+              message: "superutilities@1.0.0 was approved",
+              read: false,
+              createdAt: "2026-01-01T00:00:00Z",
+            },
+          ],
+          unreadCount: 1,
+          _links: { next: null },
+        },
+      },
+    },
+    {
+      method: "GET",
+      path: "/orgs",
+      reply: {
+        status: 200,
+        body: { data: [{ namespace: "acme", displayName: "Acme" }], _links: { next: null } },
+      },
+    },
+    {
+      method: "GET",
+      path: "/tokens",
+      reply: {
+        status: 200,
+        body: {
+          data: [
+            {
+              id: "7",
+              name: "CI",
+              scopes: ["publish"],
+              createdAt: "2026-01-01T00:00:00Z",
+              expiresAt: null,
+              lastUsedAt: null,
+            },
+          ],
+          _links: { next: null },
+        },
+      },
+    },
+  ]);
+  try {
+    const env = { HOME: dir, TWEXTHUB_NAMESPACE: "acme", TWEXTHUB_TOKEN: "sess-1" };
+    const json = (result) => {
+      assert.equal(result.code, 0, result.stderr);
+      return JSON.parse(result.stdout);
+    };
+
+    const info = await runCli(
+      ["info", "superutilities", "--namespace", "acme", "--url", hub.url, "--json"],
+      { env },
+    );
+    assert.deepEqual(json(info), detail);
+
+    const ranged = await runCli(
+      ["info", "superutilities@^1.0", "--namespace", "acme", "--url", hub.url, "--json"],
+      { env },
+    );
+    assert.deepEqual(json(ranged), [{ version: "1.0.0", status: "published" }]);
+
+    const search = await runCli(["search", "--url", hub.url, "--json"], { env });
+    assert.deepEqual(json(search), [
+      { namespace: "acme", id: "superutilities", name: "Super Utilities" },
+    ]);
+
+    const notifications = await runCli(["notifications", "--url", hub.url, "--json"], { env });
+    assert.deepEqual(json(notifications), {
+      unreadCount: 1,
+      data: [
+        {
+          id: "5",
+          kind: "review.approved",
+          message: "superutilities@1.0.0 was approved",
+          read: false,
+          createdAt: "2026-01-01T00:00:00Z",
+        },
+      ],
+    });
+
+    const orgs = await runCli(["org", "list", "--url", hub.url, "--json"], { env });
+    assert.deepEqual(json(orgs), [{ namespace: "acme", displayName: "Acme" }]);
+
+    const tags = await runCli(["tag", "list", "--url", hub.url, "--json"], {
+      cwd: fixture("basic"),
+      env,
+    });
+    assert.deepEqual(json(tags), { latest: "1.0.0" });
+
+    const tokens = await runCli(["token", "list", "--url", hub.url, "--json"], { env });
+    assert.deepEqual(json(tokens), [
+      {
+        id: "7",
+        name: "CI",
+        scopes: ["publish"],
+        createdAt: "2026-01-01T00:00:00Z",
+        expiresAt: null,
+        lastUsedAt: null,
+      },
+    ]);
   } finally {
     cleanup();
     await hub.close();

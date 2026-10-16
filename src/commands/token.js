@@ -1,4 +1,4 @@
-import { day } from "../format.js";
+import { day, printJson } from "../format.js";
 import {
   createAutomationToken,
   listAutomationTokens,
@@ -51,7 +51,7 @@ async function createToken(hub, authToken, { name, scope, "expires-in-days": exp
   return true;
 }
 
-async function listTokens(hub, authToken, log) {
+async function listTokens(hub, authToken, json, log) {
   let page;
   try {
     page = await listAutomationTokens(hub, authToken);
@@ -60,6 +60,10 @@ async function listTokens(hub, authToken, log) {
     return false;
   }
   const tokens = page?.data ?? [];
+  if (json) {
+    printJson(log, tokens);
+    return true;
+  }
   if (tokens.length === 0) {
     log.info("No automation tokens.");
     return true;
@@ -102,7 +106,7 @@ export async function tokenCommand(product, subcommand, args, values, log) {
     case "create":
       return createToken(hub, authToken, values, log);
     case "list":
-      return listTokens(hub, authToken, log);
+      return listTokens(hub, authToken, values.json, log);
     case "revoke":
       return revokeToken(hub, authToken, args[0], log);
     default:

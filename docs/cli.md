@@ -60,13 +60,13 @@ Runs the same checks as `build` and writes nothing. See [Validation](./validatio
 
 ### `twext dev`
 
-Builds the project, then watches the sources and rebuilds whenever a `.js`, `.mjs`, `.cjs`, `.json`, `.yml`, or `.yaml` file changes. The compiled extension is served at `http://localhost:8090/extension.js`, so you can add a URL to TurboWarp instead of a file and reload to pick up each save. `Ctrl+C` stops the server.
+Builds the project, then watches the sources and rebuilds whenever a `.js`, `.mjs`, `.cjs`, `.json`, `.yml`, or `.yaml` file changes. The compiled extension is served at `http://localhost:8000/extension.js`, so you can add a URL to TurboWarp instead of a file and reload to pick up each save. `Ctrl+C` stops the server.
 
 | Option                  | What it does                                                    |
 | ----------------------- | --------------------------------------------------------------- |
 | `-c`, `--config <file>` | Manifest to read. Defaults to `twext.yml`.                      |
 | `-o`, `--out <file>`    | Where to write the compiled extension, overriding `outputPath`. |
-| `-p`, `--port <number>` | Port to serve on. Defaults to `8090`; `0` picks a free one.     |
+| `-p`, `--port <number>` | Port to serve on. Defaults to `8000`; `0` picks a free one.     |
 
 The server sends `Cache-Control: no-store` and `Access-Control-Allow-Origin: *`, so TurboWarp won't hold onto a stale copy. A build that fails keeps the last good extension being served and prints the error; the next build that succeeds replaces it.
 

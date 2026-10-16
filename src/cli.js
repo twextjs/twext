@@ -52,7 +52,7 @@ Usage: ${product.command} <command> [options]
 
 Commands:
   build         Validate and compile the extension (default)
-  dev           Rebuild on change and serve the extension at http://localhost:8090
+  dev           Rebuild on change and serve the extension at http://localhost:${product.defaults.devPort}
   validate      Check blocks against the entryPoint handlers
   init          Scaffold a new project in a directory
   login         Sign in to a TwextHub hub
@@ -73,7 +73,7 @@ Commands:
 Options:
   -c, --config <file>      Path to ${product.defaults.configFilename} (default: ${product.defaults.configFilename})
   -o, --out <file>         Override the output path (build, dev)
-  -p, --port <number>      Port for the dev server (default: 8090)
+  -p, --port <number>      Port for the dev server (default: ${product.defaults.devPort})
   -f, --force              Overwrite existing files (init only); confirms org delete
   -u, --url <base>         Hub API base URL (default: https://twexts.sdisk.us/api/v2)
   -n, --namespace <name>   Namespace to act as (login/signup/publish; login default: stored)

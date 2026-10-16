@@ -128,7 +128,7 @@ These commands talk to a TwextHub. [Using TwextHub](./twexthub.md) walks through
 
 `login` and `signup` prompt for anything you leave out, and `login` reads the stored namespace when you don't pass `-n`.
 
-`publish`, `yank`, `deprecate`, the `tag` subcommands, and `token` all need a token. `checkout` needs one too, even for a public extension. `search` and `info` don't, though they send the stored token when there is one so the hub can show you your own extension. Of the `org` subcommands, `create`, `update`, `delete`, `add` and `remove` need a token; `list`, `info` and `owners` don't, and `extensions` sends the token for the same reason as `search` and `info`.
+`publish`, `yank`, `deprecate`, the `tag` subcommands, and `token` all need a token. `checkout` needs one too, even for a public extension. `search` and `info` don't, though they send the stored token when there is one so the hub can show you your own extension — on an extension you own, `info` also lists your pending and rejected versions, marked with their review state. Of the `org` subcommands, `create`, `update`, `delete`, `add` and `remove` need a token; `list`, `info` and `owners` don't, and `extensions` sends the token for the same reason as `search` and `info`.
 
 ### Extension Specs
 

@@ -2,24 +2,65 @@ import { day, downloads, printJson } from "../format.js";
 import {
   getExtension,
   getVersion,
+  HubError,
   listVersions,
   resolveHubUrl,
   resolveNamespace,
   resolveToken,
 } from "../hub.js";
-import { isRange, resolveSpec } from "../spec.js";
+import { compareVersions, isRange, resolveSpec } from "../spec.js";
+
+// The hub hides pending and rejected versions from everyone but the owner of
+// the extension, and it only honors the status filter for that same owner, so
+// the unpublished statuses are read one at a time and folded into the
+// listing. A caller who is not an owner gets a 403 here and sees exactly what
+// a stranger sees.
+async function ownerOnlyVersions(hub, namespace, id, token, range) {
+  if (!token) return [];
+  const extra = [];
+  for (const status of ["pending", "rejected"]) {
+    try {
+      const page = await listVersions(hub, namespace, id, range, token, { status });
+      extra.push(...(page?.data ?? []));
+    } catch (err) {
+      if (err instanceof HubError && (err.status === 401 || err.status === 403)) continue;
+      throw err;
+    }
+  }
+  return extra;
+}
+
+function mergeVersions(...lists) {
+  const seen = new Set();
+  const merged = [];
+  for (const list of lists) {
+    for (const version of list) {
+      if (seen.has(version.version)) continue;
+      seen.add(version.version);
+      merged.push(version);
+    }
+  }
+  return merged.sort((a, b) => compareVersions(b.version, a.version));
+}
 
 async function printExtension(log, hub, token, namespace, id, json) {
   const detail = await getExtension(hub, namespace, id, token);
-  if (json) return printJson(log, detail);
+  const versions = mergeVersions(
+    detail.versions ?? [],
+    await ownerOnlyVersions(hub, namespace, id, token),
+  );
+  if (json) return printJson(log, { ...detail, versions });
   log.info(`${detail.name} @${namespace}/${id}`);
   if (detail.description) log.bullet(detail.description);
   log.bullet(`${detail.license ?? "unknown license"}${detail.author ? `, ${detail.author}` : ""}`);
   log.bullet(`latest ${detail.version} published ${day(detail.publishedAt)}`);
-  const versions = detail.versions ?? [];
   if (versions.length > 0) log.info("versions:");
   for (const version of versions) {
-    const note = version.deprecation ? ` — ${version.deprecation}` : "";
+    const note = version.deprecation
+      ? ` — ${version.deprecation}`
+      : version.rejectionReason
+        ? ` — ${version.rejectionReason}`
+        : "";
     log.bullet(
       `${version.version} ${version.status}${note} (${day(version.publishedAt ?? version.createdAt)}${downloads(version)})`,
     );
@@ -45,7 +86,10 @@ async function printVersion(log, hub, token, namespace, id, requested, json) {
 
 async function printRange(log, hub, token, namespace, id, range, json) {
   const page = await listVersions(hub, namespace, id, range, token, { all: true });
-  const matches = page?.data ?? [];
+  const matches = mergeVersions(
+    page?.data ?? [],
+    await ownerOnlyVersions(hub, namespace, id, token, range),
+  );
   if (json) return printJson(log, matches);
   if (matches.length === 0) {
     log.info(`No version of @${namespace}/${id} matches ${range}.`);

@@ -285,9 +285,18 @@ async function allPages(base, path, token) {
 }
 
 // Highest SemVer first, so the first entry is the one a range resolves to.
-export async function listVersions(base, namespace, id, range, token, { all = false } = {}) {
+// The status filter only answers an owner or an admin; anyone else gets a 403.
+export async function listVersions(
+  base,
+  namespace,
+  id,
+  range,
+  token,
+  { all = false, status } = {},
+) {
   const query = new URLSearchParams({ limit: "50" });
   if (range) query.set("range", range);
+  if (status) query.set("status", status);
   const path = `/@${namespace}/${id}/versions?${query}`;
   return all ? allPages(base, path, token) : hubRequest(base, path, { token });
 }

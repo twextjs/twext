@@ -140,7 +140,7 @@ twext info @kamixfox/superutilities@1.2.0
 twext info @kamixfox/superutilities@^1.0
 ```
 
-Neither `search` nor `info` needs a login. They send the stored token anyway when there is one, which is how the hub knows to include your own extension in the results.
+Neither `search` nor `info` needs a login. They send the stored token anyway when there is one, which is how the hub knows to include your own extension in the results. On an extension you own, `info` also lists the versions still waiting on review and the ones that were rejected, each marked with its review state; the extension listing shows a rejection's reason too.
 
 ## 📥 Checking Out Sources
 

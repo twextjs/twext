@@ -52,3 +52,35 @@ export function isRange(version) {
     (parts.length < 3 || parts.some((part) => /^[xX]$/.test(part)))
   );
 }
+
+const SEMVER =
+  /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
+
+// SemVer precedence, for keeping a listing merged from several hub responses
+// in the same highest-first order the hub returns each part of it. Build
+// metadata is ignored, as the spec requires.
+export function compareVersions(a, b) {
+  const left = SEMVER.exec(String(a));
+  const right = SEMVER.exec(String(b));
+  if (!left || !right) return String(a).localeCompare(String(b));
+  for (let i = 1; i <= 3; i++) {
+    if (Number(left[i]) !== Number(right[i])) return Number(left[i]) - Number(right[i]);
+  }
+  const leftPre = left[4] ? left[4].split(".") : null;
+  const rightPre = right[4] ? right[4].split(".") : null;
+  if (leftPre === null && rightPre === null) return 0;
+  if (leftPre === null) return 1;
+  if (rightPre === null) return -1;
+  for (let i = 0; i < Math.max(leftPre.length, rightPre.length); i++) {
+    if (leftPre[i] === undefined) return -1;
+    if (rightPre[i] === undefined) return 1;
+    if (leftPre[i] === rightPre[i]) continue;
+    const leftNumeric = /^\d+$/.test(leftPre[i]);
+    const rightNumeric = /^\d+$/.test(rightPre[i]);
+    if (leftNumeric && rightNumeric) return Number(leftPre[i]) - Number(rightPre[i]);
+    if (leftNumeric) return -1;
+    if (rightNumeric) return 1;
+    return leftPre[i] < rightPre[i] ? -1 : 1;
+  }
+  return 0;
+}

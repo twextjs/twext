@@ -1841,21 +1841,25 @@ test("info prints extension detail, a single version and range matches", async (
     {
       method: "GET",
       path: "/@acme/superutilities/versions",
-      reply: {
-        status: 200,
-        body: {
-          data: [
-            {
-              version: "1.2.0",
-              status: "published",
-              publishedAt: "2026-10-01T00:00:00Z",
-              downloads: 40,
+      reply: (request) =>
+        // The status filter only answers an owner; this test's caller is a stranger.
+        new URLSearchParams(request.query).has("status")
+          ? { status: 403, body: { detail: "Only an owner can filter versions by status." } }
+          : {
+              status: 200,
+              body: {
+                data: [
+                  {
+                    version: "1.2.0",
+                    status: "published",
+                    publishedAt: "2026-10-01T00:00:00Z",
+                    downloads: 40,
+                  },
+                  { version: "1.1.0", status: "published", publishedAt: "2026-09-28T00:00:00Z" },
+                ],
+                _links: {},
+              },
             },
-            { version: "1.1.0", status: "published", publishedAt: "2026-09-28T00:00:00Z" },
-          ],
-          _links: {},
-        },
-      },
     },
   ]);
   try {
@@ -1893,7 +1897,9 @@ test("info prints extension detail, a single version and range matches", async (
     assert.match(ranged.stdout, /2 versions of @acme\/superutilities match \^1\.2/);
     assert.match(ranged.stdout, /1\.2\.0 published \(2026-10-01, 40 downloads\)/);
     assert.match(ranged.stdout, /1\.1\.0 published \(2026-09-28\)/);
-    const list = hub.requests.find((r) => r.path === "/@acme/superutilities/versions");
+    const list = hub.requests.find(
+      (r) => r.path === "/@acme/superutilities/versions" && r.query.includes("range="),
+    );
     assert.equal(list.query, "limit=50&range=%5E1.2");
 
     const bad = await runCli(["info", "../../admin", "--namespace", "acme", "--url", hub.url], {
@@ -1905,6 +1911,110 @@ test("info prints extension detail, a single version and range matches", async (
       hub.requests.filter((r) => r.path === "/@acme/superutilities").length,
       1,
       "a bad spec never reaches the hub",
+    );
+  } finally {
+    cleanup();
+    await hub.close();
+  }
+});
+
+test("info shows an owner their pending and rejected versions", async () => {
+  const { dir, cleanup } = tmpHome();
+  const detail = {
+    namespace: "acme",
+    id: "superutilities",
+    name: "Super Utilities",
+    version: "2.0.0",
+    versions: [
+      { version: "2.0.0", status: "published", publishedAt: "2026-09-27T00:00:00Z", downloads: 12 },
+      {
+        version: "1.0.0",
+        status: "deprecated",
+        deprecation: "use 2.0.0",
+        createdAt: "2026-01-01T00:00:00Z",
+        downloads: 3,
+      },
+    ],
+  };
+  const pending = { version: "3.0.0", status: "pending", createdAt: "2026-10-01T00:00:00Z" };
+  const rejected = {
+    version: "2.1.0",
+    status: "rejected",
+    rejectionReason: "breaks the review rules",
+    createdAt: "2026-09-30T00:00:00Z",
+  };
+  const hub = await createHub([
+    { method: "GET", path: "/@acme/superutilities", reply: { status: 200, body: detail } },
+    {
+      method: "GET",
+      path: "/@acme/superutilities/versions",
+      reply: (request) => {
+        const status = new URLSearchParams(request.query).get("status");
+        if (status === "pending") return { status: 200, body: { data: [pending], _links: {} } };
+        if (status === "rejected") return { status: 200, body: { data: [rejected], _links: {} } };
+        if (status !== null) {
+          return { status: 403, body: { detail: "Only an owner can filter versions by status." } };
+        }
+        return { status: 200, body: { data: detail.versions, _links: {} } };
+      },
+    },
+  ]);
+  try {
+    const owner = { HOME: dir, TWEXTHUB_NAMESPACE: "acme", TWEXTHUB_TOKEN: "sess-1" };
+
+    const full = await runCli(["info", "superutilities", "--namespace", "acme", "--url", hub.url], {
+      env: owner,
+    });
+    assert.equal(full.code, 0, full.stderr);
+    assert.match(full.stdout, /3\.0\.0 pending \(2026-10-01\)/);
+    assert.match(full.stdout, /2\.1\.0 rejected — breaks the review rules \(2026-09-30\)/);
+    assert.match(full.stdout, /2\.0\.0 published \(2026-09-27, 12 downloads\)/);
+    assert.match(full.stdout, /1\.0\.0 deprecated — use 2\.0\.0 \(2026-01-01, 3 downloads\)/);
+    const listed = full.stdout
+      .split("\n")
+      .filter((line) => /^ {2}• \d+\.\d+\.\d+ /.test(line))
+      .map((line) => line.trim().split(" ")[1]);
+    assert.deepEqual(listed, ["3.0.0", "2.1.0", "2.0.0", "1.0.0"], "versions list highest first");
+
+    const json = await runCli(
+      ["info", "superutilities", "--namespace", "acme", "--url", hub.url, "--json"],
+      { env: owner },
+    );
+    assert.equal(json.code, 0, json.stderr);
+    assert.deepEqual(
+      JSON.parse(json.stdout).versions.map((v) => v.version),
+      ["3.0.0", "2.1.0", "2.0.0", "1.0.0"],
+    );
+
+    const ranged = await runCli(
+      ["info", "superutilities@*", "--namespace", "acme", "--url", hub.url],
+      { env: owner },
+    );
+    assert.equal(ranged.code, 0, ranged.stderr);
+    assert.match(ranged.stdout, /4 versions of @acme\/superutilities match \*/);
+    assert.match(ranged.stdout, /3\.0\.0 pending \(2026-10-01\)/);
+    assert.match(ranged.stdout, /2\.1\.0 rejected \(2026-09-30\)/);
+
+    const stranger = await runCli(
+      ["info", "superutilities", "--namespace", "acme", "--url", hub.url],
+      { env: { HOME: dir, TWEXTHUB_NAMESPACE: "acme" } },
+    );
+    assert.equal(stranger.code, 0, stranger.stderr);
+    assert.doesNotMatch(stranger.stdout, /pending|rejected/);
+    assert.match(stranger.stdout, /2\.0\.0 published \(2026-09-27, 12 downloads\)/);
+
+    const statusRequests = hub.requests.filter((r) => r.query.includes("status="));
+    assert.equal(
+      statusRequests.length,
+      6,
+      "three owner runs each read pending and rejected; a stranger reads neither",
+    );
+    for (const request of statusRequests) {
+      assert.equal(request.authorization, "Bearer sess-1");
+    }
+    assert.deepEqual(
+      statusRequests.map((r) => new URLSearchParams(r.query).get("status")),
+      ["pending", "rejected", "pending", "rejected", "pending", "rejected"],
     );
   } finally {
     cleanup();
@@ -2073,6 +2183,7 @@ test("info and search collect every page and retain credentials and query parame
   try {
     const env = { HOME: dir, TWEXTHUB_NAMESPACE: "fallback", TWEXTHUB_TOKEN: "selected-token" };
     for (const range of ["1.2.x", "1.2"]) {
+      const before = hub.requests.length;
       const info = await runCli(
         ["info", `superutilities@${range}`, "-n", "acme", "--url", `${hub.url}/api/v1`],
         { env },
@@ -2080,9 +2191,9 @@ test("info and search collect every page and retain credentials and query parame
       assert.equal(info.code, 0, info.stderr);
       assert.match(info.stdout, /3 versions of @acme\/superutilities/);
       assert.match(info.stdout, /1\.2\.1 published/);
-      assert.ok(
-        hub.requests.slice(-3).every((r) => new URLSearchParams(r.query).get("range") === range),
-      );
+      const reads = hub.requests.slice(before);
+      assert.equal(reads.length, 5, "three pages plus the two owner-only status reads");
+      assert.ok(reads.every((r) => new URLSearchParams(r.query).get("range") === range));
     }
     const search = await runCli(
       ["search", "blocks", "--sort", "downloads", "--url", `${hub.url}/api/v1`],
@@ -2091,7 +2202,7 @@ test("info and search collect every page and retain credentials and query parame
     assert.equal(search.code, 0, search.stderr);
     assert.match(search.stdout, /3 extensions matching "blocks"/);
     assert.match(search.stdout, /Result 3/);
-    assert.equal(hub.requests.length, 9);
+    assert.equal(hub.requests.length, 13);
     assert.ok(hub.requests.every((r) => r.authorization === "Bearer selected-token"));
     assert.ok(
       hub.requests.slice(-3).every((r) => new URLSearchParams(r.query).get("sort") === "downloads"),
